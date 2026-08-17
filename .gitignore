@@ -1,0 +1,27 @@
+# Competition data — pulled with the kaggle CLI, never committed.
+data/
+*.csv
+*.parquet
+*.zip
+
+# Credentials. kaggle.json lives in ~/.kaggle, never here.
+kaggle.json
+.env
+.env.local
+
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+*.egg-info/
+.pytest_cache/
+.ipynb_checkpoints/
+
+# Simulation output
+runs/
+checkpoints/
+*.log
+
+# Claude agent internals
+.claude/
