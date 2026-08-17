@@ -27,6 +27,7 @@ def main():
     ap.add_argument("--agent", default="main.py")
     ap.add_argument("--replay", default=None, help="write one replay JSON here")
     ap.add_argument("--seed", type=int, default=None)
+    ap.add_argument("--json", action="store_true", help="one machine-readable line, for sweeps")
     args = ap.parse_args()
 
     try:
@@ -65,7 +66,8 @@ def main():
         else:
             losses += 1
 
-        print(f"  game {g+1}: {r0} vs {r1}  {'win' if r0 > r1 else 'draw' if r0 == r1 else 'loss'}")
+        if not args.json:
+            print(f"  game {g+1}: {r0} vs {r1}  {'win' if r0 > r1 else 'draw' if r0 == r1 else 'loss'}")
 
         if args.replay and g == 0:
             with open(args.replay, "w") as f:
@@ -73,6 +75,17 @@ def main():
             print(f"  replay written to {args.replay}")
 
     played = len(mine)
+    if args.json:
+        print(json.dumps({
+            "games": args.games, "played": played, "crashed": crashed,
+            "wins": wins, "draws": draws, "losses": losses,
+            "median": statistics.median(mine) if played else None,
+            "min": min(mine) if played else None,
+            "max": max(mine) if played else None,
+            "their_median": statistics.median(theirs) if played else None,
+            "elapsed": round(time.time() - t0, 1),
+        }))
+        sys.exit(1 if crashed else 0)
     print()
     print(f"opponent      : {args.opponent}")
     print(f"games         : {args.games} ({played} finished, {crashed} crashed)")
