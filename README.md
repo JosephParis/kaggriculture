@@ -14,6 +14,16 @@ move with supply and demand. Scored on income.
 So this is a policy and simulation problem, not a feature-engineering one. A
 gradient-boosted model over a feature table is the wrong shape.
 
+## Strategy
+
+[docs/STRATEGY.md](docs/STRATEGY.md) is the plan: what the market will absorb,
+why labour is the thing to buy, and the four-phase season. The backlog in
+[docs/issues/](docs/issues/README.md) is ordered to match it.
+
+The environment source is installed locally, so the game's exact rules,
+constants and price function are readable — see the strategy doc for the path.
+Prefer reading it over probing the simulator.
+
 ## Environment
 
 - Use **`py -3.12`**. The default `python` on this machine is a sandboxed

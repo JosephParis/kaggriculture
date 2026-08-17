@@ -56,58 +56,77 @@ Starting bank is $3,000. Land: NW free, then $1k / $2k / $4k.
 
 ## The backlog
 
-### P0 — can't do anything without these
+Reprioritised 17 August 2026 — see [STRATEGY.md](../STRATEGY.md) for the
+reasoning. Two things changed everything: the environment source is readable on
+this machine, so mechanics never need probing; and hiring 2–4 hands nearly
+doubles the baseline for $7/day, so the engine is much further from optimal than
+the ordering below assumed.
+
+### P0 — the engine
 
 | # | Issue | Effort | Status |
 |---|---|---|---|
 | [01](01-baseline-and-harness.md) | Baseline agent and local eval harness | M | **done** |
-| [02](02-measure-the-market.md) | Measure the price function empirically | M | open |
+| [02](02-measure-the-market.md) | Measure the price function empirically | M | **closed — answered from source** |
+| 13 | Parameter sweep harness over batched games | M | open |
+| 05+06 | Hire-and-expand: hands and land scale together | M | open |
+| 07 | Livestock: the goose/egg/fertilizer engine | L | open |
+| 04 | Crop mix: wheat for feed, melon for the premium slice | M | open |
 
-**Current baseline: 100% vs `starter` over 20 games, median $6,024 (theirs
+**Current baseline: 100% vs `starter`, median $6,024 over 20 games (theirs
 $3,560).** Beat that number or it is a regression. `py eval.py --games 20`.
 
-Labour is confirmed as the binding constraint, not land or money. The first
-baseline planted 15 tiles, could not water them, and the farm was weeds by day
-6 — final profit $46. Sizing the plot to the workforce took it to $3,024 profit
-with no other change. Every later decision (hiring, land, animals) is really a
-question about labour capacity.
+**Measured ceiling on the labour lever:** the same baseline with `HIRE` bolted on
+and `PLOT` widened to the whole NW quadrant scores a median $10,878 at 4 hands
+(4 games). The strategy doc estimates $30k–50k is reachable with livestock. The
+gap between $6k and $30k is engine, not tuning.
 
-### P1 — the actual game
+Labour was confirmed as the binding constraint early: the first baseline planted
+15 tiles, could not water them, and the farm was weeds by day 6 — final profit
+$46. Sizing the plot to the workforce took it to $3,024 profit with no other
+change. The correction to that lesson is that the answer was never "plant less",
+it was "hire more and buy land".
 
-| # | Issue | Effort | Status |
-|---|---|---|---|
-| [03](03-labour-scheduling.md) | Labour scheduling: the real constraint | L | open |
-| 04 | Crop mix: when melon beats wheat | M | open |
-| 05 | Hiring policy against the fibonacci cost curve | M | open |
-| 06 | Land expansion: when $1k/$2k/$4k pays back | M | open |
-
-### P2 — compounding advantages
+### P1 — making the engine sharp
 
 | # | Issue | Effort | Status |
 |---|---|---|---|
-| 07 | Livestock: feed economics and the wheat dependency | L | open |
-| 08 | Town shop demand: track unlocks, sell into them | M | open |
-| 09 | Opponent modelling: both farms are visible | L | open |
-| 10 | Sell timing against the shared market | M | open |
+| [03](03-labour-scheduling.md) | Labour scheduling: assignment across many units | L | open |
+| 10 | Sell timing: dump `log` goods, meter `linear`/`sq` goods | M | open |
+| 14 | Endgame: liquidate by day 29, unsold inventory scores zero | S | open |
 
-### P3 — operational
+### P2 — margins
 
 | # | Issue | Effort | Status |
 |---|---|---|---|
+| 08 | Town shop demand: track unlocks, sell into scarcity | M | open |
 | 11 | Submission pipeline and leaderboard tracking | S | open |
 | 12 | Replay analysis tooling | M | open |
+
+### P3 — probably not worth it yet
+
+| # | Issue | Effort | Status |
+|---|---|---|---|
+| 09 | Opponent modelling: both farms are visible | L | open |
+
+Demoted. With an order of magnitude between us and our own baseline, reacting to
+the opponent is premature. The one opponent-aware behaviour that pays now is the
+fertilizer and melon race, and that reduces to "sell premium goods early" — it
+needs no model.
 
 ## Dependencies
 
 ```
 01 (harness) ──> everything: nothing can be measured without it
-02 (market)  ──> 04, 10  (crop mix and sell timing are both price problems)
-03 (labour)  ──> 05, 06, 07  (hiring, land and animals all buy labour or need it)
-07 (animals) <── wheat engine from 03/04
+13 (sweeps)  ──> 04, 05+06, 07, 10  (every policy constant wants tuning)
+05+06        ──> 03, 07  (hands and land are what livestock and scheduling need)
+07 (animals) <── wheat engine from 04, for feed
+04 (melon)   ──> 10, 14  (the premium race is a timing problem)
 ```
 
 ## If you only do three
 
-**01**, **02**, **03**. The harness makes everything else measurable, the market
-determines whether producing more is even good, and labour scheduling is the
-constraint every other decision runs into.
+**13**, **05+06**, **07**. The sweep harness makes every constant tunable against
+a simulator we fully own; hire-and-expand is worth +76% today and is a day's
+work; and the goose/fertilizer engine is where the remaining order of magnitude
+lives.

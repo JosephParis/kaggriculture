@@ -3,8 +3,35 @@ id: 02
 title: "Measure the price function empirically"
 priority: P0
 effort: M
-status: open
+status: closed
 ---
+
+## Resolution — closed 17 August 2026, without probing
+
+The environment source is installed on this machine:
+
+    kaggle_environments/envs/kaggriculture/kaggriculture.py
+
+`MARKET_PARAMS` and `market_price()` are the price function, exactly. There was
+never a curve to recover. The tabulated answers now live in
+[../STRATEGY.md](../STRATEGY.md); the short version:
+
+- **Wheat never crashes.** Its `above_func` is `log`: ~$23/unit at 50 sold,
+  ~$21 at 200, ~$20 at 800. The question this issue was written to answer —
+  "how many wheat per day before the marginal unit stops paying for its
+  labour?" — has the answer **effectively none, at any volume we can reach**.
+  Wheat is a flat ~$20 sink. Egg behaves the same way at ~$40.
+- **Volume is not the binding constraint; labour is.** So the "grow more"
+  instinct is right, and the real question is how many actions we can buy.
+- The premium goods are the exception and invert the logic: strawberry, milk
+  and wool hit the $1 floor by unit ~50, and melon by ~150. Those are a race
+  against the opponent, not a production problem.
+- Recovery is driven by town consumption, which drains inventory every turn.
+  Wheat is demanded by 5 of 8 shop types and egg by 2, so both recover and rise
+  late in the season. **Fertilizer is demanded by nothing and never recovers.**
+
+Lesson worth keeping: check whether the answer is already sitting in an
+installed package before designing an experiment to measure it.
 
 ## Problem
 
