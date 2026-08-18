@@ -54,6 +54,13 @@ Starting bank is $3,000. Land: NW free, then $1k / $2k / $4k.
 - Environment: **`py -3.12`**. The default `python` is a sandboxed Store 3.9 and
   `kaggle-environments` requires ≥3.11.
 
+## Before starting anything
+
+[../TRIED.md](../TRIED.md) lists every experiment already run and its
+result. A good number of plausible ideas in this backlog have been tried
+and lost — melon acreage, more hands, more land, strawberry, front-running
+the opponent's melon dump. Check there first.
+
 ## The backlog
 
 Reprioritised 17 August 2026 — see [STRATEGY.md](../STRATEGY.md) for the

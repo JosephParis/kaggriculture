@@ -1,0 +1,212 @@
+# What has been tried
+
+A log of every experiment run against this agent, kept so nobody re-runs a
+losing one. Last updated 18 August 2026.
+
+Read [STRATEGY.md](STRATEGY.md) first for the economics, then this for the
+record of what those economics actually bought.
+
+**Current agent: `main.py`, median $75k against `starter`, 100% win rate over
+12 games.** Ladder rating is a different question — see "Where we actually
+stand" at the bottom.
+
+---
+
+## How to test anything here
+
+Three tools, in increasing order of trustworthiness:
+
+```
+py -3.12 eval.py   --games 12                      # bank vs starter: a filter
+py -3.12 sweep.py  KNOB=a,b,c --games 12           # paired-seed parameter grid
+py -3.12 h2h.py    cand.py --base main.py --games 12   # win rate, both seats
+```
+
+**`h2h.py` is the objective.** The ladder rates on win/loss/tie only; coin
+margin buys no rating. Bank against `starter` has been actively misleading
+more than once — two herd configurations within $600 of each other on bank
+went 11-5 head to head, and turning `CARE` off looked free on bank but loses
+0-20 head to head.
+
+Three rules learned the hard way:
+
+- **Never compare on unpaired games.** An early 4-game unpaired comparison said
+  the distance tiebreak was a $3,400 regression; 10 paired games said it was a
+  $3,600 improvement. The sign was wrong, not just the magnitude.
+- **Use at least 12 games a seat.** A 6-game panel rated a melon-20 build level
+  with the incumbent; 28 games had it losing 2-26.
+- **Everything below is a mirror match.** Both sides dump the same premium
+  goods on the same turn, which punishes builds leaning on a market the real
+  field may not be contesting. This bias is known and unmeasured.
+
+---
+
+## Mechanics worth knowing before proposing anything
+
+- **The environment source is installed locally**, at
+  `kaggle_environments/envs/kaggriculture/kaggriculture.py`. Read it. Nothing
+  about this game needs to be discovered by probing.
+- **`actTimeout` is 1 second** across 720 turns. No search, no rollouts. The
+  agent is greedy assignment and must stay that way. Current p99 is 0.8ms.
+- **Market orders cost no unit-actions**, only the 10-per-turn cap. Selling is
+  never a tradeoff against farming.
+- **`SELL` only sees the shed.** `HARVEST` puts produce in a unit's inventory;
+  `_end_of_day` moves it to the shed for free. Walking to the shed to store
+  things is wasted motion — the old baseline burned much of its day on it.
+- **Shed cap is 100 and overflow is destroyed.** ~49 units a season are lost
+  this way. Delivering more often to prevent it costs more than it saves.
+- **Unsold inventory scores zero**, and the end-of-day drop runs *after* the
+  reward is taken, so the last day needs an explicit liquidation.
+- **Town drain is what holds premium prices up**, and the original strategy doc
+  missed it entirely: strawberry 25/day, milk 19/day, carrot 19/day, wool
+  13/day, egg 13/day, tomato 13/day, wheat 31/day. **Melon 1/day and
+  fertilizer 0/day** — those two never recover, everything else does.
+- **Animal value per tile per day**, with `CARE` banking +1 daily:
+  sheep $267 (payback 1.9d), cow $240 (1.7d), goose $100 (3.0d).
+- **Never `FERTILIZE`.** The yield bonus is worth $25-42; the fertilizer sells
+  for $60-100. It is a cash crop, not an input.
+
+---
+
+## Accepted — these are in `main.py`
+
+| # | Change | Effect |
+|---|---|---|
+| 1 | Hire hands every morning, sized to the work | $6.0k → ~$10k on its own |
+| 2 | Buy two quadrants (NE+SW) | matches the public meta |
+| 3 | Fixed per-unit territory for the day | stopped units oscillating |
+| 4 | Serpentine block ordering | distance-ordered blocks are diagonal arcs |
+| 5 | Distance tiebreak within an urgency tier | movement 72% → 65% of actions |
+| 6 | Water only for survival or yield window | 4 actions instead of 5 per wheat |
+| 7 | Stop walking to the shed to store produce | end-of-day drop is free |
+| 8 | Cows + sheep instead of geese | $51k → $60k |
+| 9 | Buy wheat feed from the market | +$9k, *only* once animals were cows/sheep |
+| 10 | Melon on 16 tiles | +$20k, the single biggest change |
+| 11 | Harvest-at-cap outranks fertilizer collection | 112 eggs/season → 4 |
+| 12 | Endgame liquidation from hour 15 on day 29 | +$1.3k |
+| 13 | Cap animal purchases by *placeable* tiles | animals cannot be sold |
+| 14 | Seed spend against a running balance | latent; three crops emptied day 0 |
+| 15 | 8 cows / 4 sheep | beat 6/6 by 15-1 head to head |
+
+**Note on 9:** feed buying was correctly rejected for the goose farm and
+correctly accepted for the cow/sheep farm. The same knob flipped sign when the
+animals changed. Re-test knobs after structural changes.
+
+---
+
+## Rejected — do not re-run these without a new reason
+
+### Structural
+
+| Idea | Result |
+|---|---|
+| Third quadrant (`MAX_LAND=3`) | $12.5k vs $9.4k for two; loses again later |
+| **Full public meta shape**: 3 quadrants + 10-12 hands + bigger herd | **0-24** |
+| Hiring floor of 8 / 10 / 12 hands | 3-21, 3-21, 0-24 |
+| `TILES_PER_UNIT` 6 / 10 | 1-15, 0-20 |
+| Rancher density `GEESE_PER_RANCHER` 4 / 6 | worse, 0-28 at 6 |
+
+The meta result is the informative one. The leaders run three quadrants and 12
+hands at rating ~3000, and copying those numbers makes *our* agent worse.
+They execute hand-tuned 719-turn routes; our greedy one-step router cannot
+exploit 71 tiles. **The gap is routing quality, not configuration.**
+
+### Crops
+
+| Idea | Result |
+|---|---|
+| Melon 8 / 12 / 18 / 20 / 22 / 24 / 26 tiles | all lose to 16; 18 and 20 at 2-26 |
+| Melon planting cutoff day 9 | $8k worse |
+| Melon planting cutoff day 13 | tied (submitted as v5) |
+| Strawberry, 8 and 14 tiles | 7-13, 8-12 |
+| Geese at any count | superseded by cows/sheep |
+
+Strawberry looks great on town drain (25/day, the highest) and is in the top
+public tapes, but four units off one planting is 0.24/tile/day, it holds the
+tile 17 days, and its survival watering competes with the herd.
+
+### Herd
+
+| Composition | Result |
+|---|---|
+| **8 cows / 4 sheep** | **current best** |
+| 6/6 | −15 vs current |
+| 8/5 | −4 (submitted as v4) |
+| 10/8, 4/8, 8/2, 12/4, 10/4, 10/6, 8/6, 8/8 | all clearly worse |
+
+Sheep are worth more per tile per day than cows in isolation, yet sheep-heavy
+builds lose. Unexplained; possibly wool's lower town drain (13 vs 19/day), or
+the 3-day interval interacting with `max_held`.
+
+### Logistics and market
+
+| Idea | Result |
+|---|---|
+| Daily flush (deliver from hour 18/21) | much worse; walking beats the ~49 units saved |
+| `DROP_THRESHOLD` 5 / 8 | 14 stays best |
+| `FEED_CARRY` 14 | far worse — it exceeds `DROP_THRESHOLD`, so a unit picks up feed and immediately turns round to deliver it |
+| **Front-run the opponent's melon dump** | **0-24**, and 2-22 even when gated to units carrying melon |
+| `CARE_ENABLED=0` | 0-20 — CARE is essential despite looking free on bank |
+| `GOOSE_CASH_BUFFER` 300 | 6-14 |
+| `GOOSE_BUY_RATE` 6, `GOOSE_START_DAY` 1 | no-ops; the knobs never bind |
+
+The front-run is Hamburger's published idea and it is sound in principle —
+both farms are public, melon never recovers, first seller takes $217/unit. It
+fails here purely on action economy: breaking off to deliver costs more than
+winning the melon price is worth.
+
+---
+
+## Where we actually stand
+
+Five submissions on 18 August, all rating near the 600 starting value against
+leaders at ~3190:
+
+| | local vs `starter` | ladder |
+|---|---|---|
+| v1 geese + melon | $51k | 628 |
+| v2 cows+sheep, bought feed | $77k | 590 |
+| v3 8c/4s (= `main.py`) | $75k | 596 |
+| v4 8c/5s | $72k | pending |
+| v5 melon cutoff day 13 | $72k | pending |
+
+Ratings warm from 600 and five instances split the episode pool, so these are
+noisy. But the public notebooks warn that a farm printing 100-170k against
+`starter` can still sit mid-ladder, and we print 75k.
+
+---
+
+## Open leads, best first
+
+1. **Replay analysis of a loss to a strong opponent.**
+   `py -3.12 -m kaggle competitions replay <episode_id>`, then diff their
+   turn-by-turn routing against ours. Everything above says the remaining gap
+   is execution, and this is the only way to see it directly. Nothing else on
+   this list is worth doing first.
+2. **Routing.** ~65% of unit-actions are still movement. The agent picks one
+   greedy step per unit per turn with no lookahead and no coordination between
+   units. A real tour per unit per day is the obvious next structure, and it is
+   what would make three quadrants and 12 hands pay.
+3. **Sell timing.** Egg and wheat prices *rise* all season (to ~$92 and ~$47 by
+   day 28) because town drain outpaces supply. Nothing exploits the drift.
+4. **Opponent modelling.** Both farms are public. Whether the opponent grows
+   melon should decide whether our second cycle is worth planting.
+5. **A non-mirror evaluation.** `panel.py` exists but only the incumbent
+   discriminates — everything beats a cow ranch and a melon IPO 12-0. Better
+   sparring partners would have to come from real replays.
+
+---
+
+## Traps specific to this repo
+
+- **`main.py` uses CRLF.** Multi-line string replacement with `\n` silently
+  matches nothing. Several edits no-oped this way and the resulting file
+  referenced undefined names. Edit by lines, normalise endings, and assert the
+  edit applied.
+- **Trace before theorising.** Every significant bug here was invisible in the
+  score: the farm dying by day 6, geese starving by day 4, five birds pegged at
+  `max_held` for ten days, 72% of actions being movement. Use
+  `debug_trace.py`, or tally actions by type.
+- **Kaggle's CLI:** use `py -3.12 -m kaggle` (2.2.4). The `kaggle.exe` on the
+  Store Python 3.9 is 1.7.4.5 and cannot read a `KGAT_` token. A bare `403` on
+  submit may just be transient — retry before concluding, it costs nothing.

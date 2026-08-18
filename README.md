@@ -16,13 +16,17 @@ gradient-boosted model over a feature table is the wrong shape.
 
 ## Strategy
 
-[docs/STRATEGY.md](docs/STRATEGY.md) is the plan: what the market will absorb,
-why labour is the thing to buy, and the four-phase season. The backlog in
-[docs/issues/](docs/issues/README.md) is ordered to match it.
+Read in this order:
 
-The environment source is installed locally, so the game's exact rules,
-constants and price function are readable — see the strategy doc for the path.
-Prefer reading it over probing the simulator.
+- [docs/TRIED.md](docs/TRIED.md) — **start here.** Every experiment run
+  against this agent and its result, so nothing gets re-tried. Also the
+  testing rules, which are not obvious and have burned us.
+- [docs/STRATEGY.md](docs/STRATEGY.md) — the economics: what the market
+  absorbs, why labour is the thing to buy, what the town drains.
+- [docs/issues/](docs/issues/README.md) — the backlog, ordered to match.
+
+The environment source is installed locally, so the exact rules, constants
+and price function are readable. Prefer reading it over probing.
 
 ## Environment
 
