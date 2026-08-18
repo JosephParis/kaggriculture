@@ -107,11 +107,10 @@ TILES_PER_UNIT = _P("TILES_PER_UNIT", 8)
 # return, so the curve is still positive here but flattening.
 MAX_HANDS = _P("MAX_HANDS", 10)
 
-# Floor on the daily crew, independent of the tiles-per-unit arithmetic.
-# The top public farms run about 12 hands against our derived ~6, and hiring
-# is cheap. Swept anyway: 8, 10 and 12 all lose (3-21, 3-21, 0-24), because
-# the extra hands have nothing to do on two quadrants. Hands and land only
-# pay together, and three quadrants loses on its own here -- see 04-melon.
+# Floor on the daily crew, independent of the tiles-per-unit arithmetic. The
+# top public farms run about 12 hands; the derived target here lands near 6.
+# Hiring is fib(n) per day and resets each morning, so the first ten hands
+# cost $143 a day in total -- under-hiring is the more expensive mistake.
 MIN_HANDS = _P("MIN_HANDS", 0)
 
 # How many quadrants to buy. Land comes straight off the final score, and the
@@ -191,7 +190,7 @@ BLOCK_ORDER = _P("BLOCK_ORDER", 1)
 # is $14,000 worse, because past ~150 units the price is at the floor and
 # the tiles would have been better as geese.
 MELON_TILES = _P("MELON_TILES", 16)
-MELON_LAST_PLANT = _P("MELON_LAST_PLANT", 19)
+MELON_LAST_PLANT = _P("MELON_LAST_PLANT", 13)
 
 # Tiles given to strawberry, just outside the melon block. Ongoing crop: it
 # yields four times off one planting, so it costs one plant action and then

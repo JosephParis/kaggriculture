@@ -107,11 +107,10 @@ TILES_PER_UNIT = _P("TILES_PER_UNIT", 8)
 # return, so the curve is still positive here but flattening.
 MAX_HANDS = _P("MAX_HANDS", 10)
 
-# Floor on the daily crew, independent of the tiles-per-unit arithmetic.
-# The top public farms run about 12 hands against our derived ~6, and hiring
-# is cheap. Swept anyway: 8, 10 and 12 all lose (3-21, 3-21, 0-24), because
-# the extra hands have nothing to do on two quadrants. Hands and land only
-# pay together, and three quadrants loses on its own here -- see 04-melon.
+# Floor on the daily crew, independent of the tiles-per-unit arithmetic. The
+# top public farms run about 12 hands; the derived target here lands near 6.
+# Hiring is fib(n) per day and resets each morning, so the first ten hands
+# cost $143 a day in total -- under-hiring is the more expensive mistake.
 MIN_HANDS = _P("MIN_HANDS", 0)
 
 # How many quadrants to buy. Land comes straight off the final score, and the
@@ -122,7 +121,7 @@ LAND_CASH_BUFFER = _P("LAND_CASH_BUFFER", 300)
 
 # The herd, on the tiles nearest the shed. Sized against what the town drains
 # per day, since that is what holds the price up.
-N_SHEEP = _P("N_SHEEP", 4)
+N_SHEEP = _P("N_SHEEP", 5)
 N_COWS = _P("N_COWS", 8)
 N_GEESE = _P("N_GEESE", 0)
 GOOSE_TARGET = N_SHEEP + N_COWS + N_GEESE  # total animal tiles

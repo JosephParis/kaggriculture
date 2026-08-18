@@ -107,13 +107,6 @@ TILES_PER_UNIT = _P("TILES_PER_UNIT", 8)
 # return, so the curve is still positive here but flattening.
 MAX_HANDS = _P("MAX_HANDS", 10)
 
-# Floor on the daily crew, independent of the tiles-per-unit arithmetic.
-# The top public farms run about 12 hands against our derived ~6, and hiring
-# is cheap. Swept anyway: 8, 10 and 12 all lose (3-21, 3-21, 0-24), because
-# the extra hands have nothing to do on two quadrants. Hands and land only
-# pay together, and three quadrants loses on its own here -- see 04-melon.
-MIN_HANDS = _P("MIN_HANDS", 0)
-
 # How many quadrants to buy. Land comes straight off the final score, and the
 # third quadrant costs $4,000 -- swept at $12,502 for two against $9,405 for
 # three, so it never earns that back in the days it has left.
@@ -122,8 +115,8 @@ LAND_CASH_BUFFER = _P("LAND_CASH_BUFFER", 300)
 
 # The herd, on the tiles nearest the shed. Sized against what the town drains
 # per day, since that is what holds the price up.
-N_SHEEP = _P("N_SHEEP", 4)
-N_COWS = _P("N_COWS", 8)
+N_SHEEP = _P("N_SHEEP", 0)
+N_COWS = _P("N_COWS", 2)
 N_GEESE = _P("N_GEESE", 0)
 GOOSE_TARGET = N_SHEEP + N_COWS + N_GEESE  # total animal tiles
 GEESE_PER_RANCHER = _P("GEESE_PER_RANCHER", 5)
@@ -190,7 +183,7 @@ BLOCK_ORDER = _P("BLOCK_ORDER", 1)
 # than a production problem: plant early, sell on harvest. Swept at 20; 26
 # is $14,000 worse, because past ~150 units the price is at the floor and
 # the tiles would have been better as geese.
-MELON_TILES = _P("MELON_TILES", 16)
+MELON_TILES = _P("MELON_TILES", 24)
 MELON_LAST_PLANT = _P("MELON_LAST_PLANT", 19)
 
 # Tiles given to strawberry, just outside the melon block. Ongoing crop: it
@@ -574,7 +567,7 @@ def _hire_target(full_plot, n_animal_tiles):
     """
     ranchers = (n_animal_tiles + GEESE_PER_RANCHER - 1) // GEESE_PER_RANCHER
     croppers = max(0, len(full_plot) - n_animal_tiles) // TILES_PER_UNIT
-    return min(MAX_HANDS, max(1, MIN_HANDS, ranchers + croppers - 1))
+    return min(MAX_HANDS, max(1, ranchers + croppers - 1))
 
 
 def _market_orders(me, private, obs, full_plot, crop_plot, n_geese, n_animal_tiles,
