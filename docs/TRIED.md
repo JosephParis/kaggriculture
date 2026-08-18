@@ -28,16 +28,27 @@ more than once — two herd configurations within $600 of each other on bank
 went 11-5 head to head, and turning `CARE` off looked free on bank but loses
 0-20 head to head.
 
-Three rules learned the hard way:
+Five rules learned the hard way, each after getting a result backwards:
 
 - **Never compare on unpaired games.** An early 4-game unpaired comparison said
   the distance tiebreak was a $3,400 regression; 10 paired games said it was a
   $3,600 improvement. The sign was wrong, not just the magnitude.
 - **Use at least 12 games a seat.** A 6-game panel rated a melon-20 build level
   with the incumbent; 28 games had it losing 2-26.
-- **Everything below is a mirror match.** Both sides dump the same premium
-  goods on the same turn, which punishes builds leaning on a market the real
-  field may not be contesting. This bias is known and unmeasured.
+- **Sample a range wide enough to contain the optimum.** Strawberry was
+  rejected twice on tests at 8 and 14 tiles, both of which genuinely lose.
+  The curve is not monotonic: 16 wins and it improves all the way to filling
+  the farm. Two points on the wrong side of a threshold look exactly like a
+  dead idea.
+- **Re-derive every allocation after a structural change, not just the knob
+  you changed.** Turning on bought feed made wheat redundant; melon and
+  strawberry acreage had both been fitted against a farm that grew wheat, and
+  both were badly wrong afterwards (melon 16 -> 24, strawberry 0 -> 44).
+  This has now caused three separate wrong conclusions.
+- **Test against recorded opponents, not only a mirror** (`opponents/`).
+  The mirror is not useless -- it did rate strawberry correctly once the range
+  was right -- but the real-opponent test is what exposed the farm sitting
+  two-thirds empty in the first place.
 
 ---
 
