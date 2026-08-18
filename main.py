@@ -53,6 +53,13 @@ SHED_ACCESS = [(4, 4), (5, 4), (4, 5), (5, 5)]
 CROP_SPEC = {
     "WHEAT": {"seed": 10, "harvest_age": 4, "window": (2, 4)},
     "MELON": {"seed": 80, "harvest_age": 10, "window": (6, 10)},
+    # Ongoing: produces at ages 10, 12, 14, 16 and then decays, so it is
+    # harvested repeatedly and never replanted. Watering earns no yield bonus
+    # on an ongoing crop, so it is watered only to keep it alive. The town
+    # drains strawberry 25/day, more than any other product, which is why the
+    # price holds despite a curve that would otherwise floor it by unit 60.
+    "STRAWBERRY": {"seed": 100, "harvest_age": 10, "window": (99, 0),
+                   "ongoing": True},
 }
 WHEAT_SEED_COST = CROP_SPEC["WHEAT"]["seed"]
 WHEAT_MAX_YIELD_DAY = CROP_SPEC["WHEAT"]["harvest_age"]
@@ -149,6 +156,17 @@ FLUSH_HOUR = _P("FLUSH_HOUR", 15)
 # disables it.
 DAILY_FLUSH_HOUR = _P("DAILY_FLUSH_HOUR", 24)
 
+# Front-run the opponent's premium dump. Both farms are public, so a melon
+# crop ripening on their side is visible before it reaches the market. Melon
+# is drained by the town at only 1/day and its price curve is quadratic in
+# the glut, so it never recovers: whoever sells first takes ~$217 a unit and
+# the other gets the floor. When their melons are ready, ours stop waiting
+# for a full load and go to the shed now, where SELL can actually see them.
+# Swept off: it loses 2-22 head to head even when gated to units carrying
+# melon. Breaking off to deliver costs more action economy than beating the
+# opponent to the melon price is worth.
+FRONT_RUN = _P("FRONT_RUN", 0)
+
 # Weight on distance when breaking ties within an urgency tier. 0 makes a
 # unit work its block in a fixed order regardless of where it is standing.
 TIEBREAK_DIST = _P("TIEBREAK_DIST", 1)
@@ -167,6 +185,15 @@ BLOCK_ORDER = _P("BLOCK_ORDER", 1)
 # the tiles would have been better as geese.
 MELON_TILES = _P("MELON_TILES", 16)
 MELON_LAST_PLANT = _P("MELON_LAST_PLANT", 19)
+
+# Tiles given to strawberry, just outside the melon block. Ongoing crop: it
+# yields four times off one planting, so it costs one plant action and then
+# only survival watering. Worth ~$34/action against wheat's ~$14, and the
+# town drains 25/day so the price holds.
+# Swept off: it loses 7-13 head to head. Four units off one planting is
+# still only 0.24/tile/day, it occupies the tile for 17 days, and its
+# survival watering competes with the herd. Wheat for feed beats it.
+STRAWBERRY_TILES = _P("STRAWBERRY_TILES", 0)
 
 # Wheat planted later than this cannot reach max_yield_day before the season
 # ends, so the tile is better left empty.
@@ -316,7 +343,8 @@ def _crop_task(tile, day, crop="WHEAT"):
     kind = tile.get("kind")
     if kind == "PLANT":
         age = day - tile.get("planted_day", day)
-        ripe = CROP_SPEC.get(tile.get("crop"), CROP_SPEC["WHEAT"])["harvest_age"]
+        spec = CROP_SPEC.get(tile.get("crop"), CROP_SPEC["WHEAT"])
+        ripe = spec["harvest_age"]
         if tile.get("yield_units", 0) > 0 and (age >= ripe or last_day):
             return (T_HARVEST, "HARVEST")
         # On the last day a plant that cannot be harvested is worth nothing,
@@ -435,12 +463,12 @@ def _go(pos, target, op_here):
 
 
 def _rancher_op(tiles, pos, block, day, hour, inv, carried, shed,
-                wheat_in_shed, animal_of):
+                wheat_in_shed, animal_of, rush=False):
     """One op for a unit working the animal zone."""
     has_wheat = inv.get("WHEAT", 0) > 0
 
     flush = (hour >= FLUSH_HOUR if day >= SEASON_DAYS - 1 else hour >= DAILY_FLUSH_HOUR)
-    if flush and carried > 0:
+    if (flush or (rush and carried > 0)) and carried > 0:
         return _go(pos, _nearest_shed_tile(*pos), ["DROP"])
 
     animals = [(x, y) for (x, y) in block
@@ -500,13 +528,13 @@ def _rancher_op(tiles, pos, block, day, hour, inv, carried, shed,
 
 
 def _farmhand_op(tiles, pos, block, fallback, day, hour, carried, seeds_left,
-                 crop_of):
+                 crop_of, rush=False):
     """One op for a unit working crops."""
     # Get produce into the shed while it can still be sold. Anything still in a
     # unit's hands when the season ends is scored as nothing, and any wave
     # bigger than the shed cap is discarded at end of day.
     flush_hour = FLUSH_HOUR if day >= SEASON_DAYS - 1 else DAILY_FLUSH_HOUR
-    last_day_flush = hour >= flush_hour and carried > 0
+    last_day_flush = (hour >= flush_hour or rush) and carried > 0
     if carried >= DROP_THRESHOLD or last_day_flush:
         return _go(pos, _nearest_shed_tile(*pos), ["DROP"]), 0
 
@@ -609,18 +637,22 @@ def _market_orders(me, private, obs, full_plot, crop_plot, n_geese, n_animal_til
         if want > 0:
             orders.append(["BUY_PRODUCT", "WHEAT", want])
 
-    # Melon first: it is worth twenty times a wheat tile and the seed is the
-    # only thing standing between a bare tile and $1,300.
-    for crop in ("MELON", "WHEAT"):
+    # Premium first, then feed. Spend against a running balance: without it
+    # each crop sized its order off the full bank, and once strawberry joined
+    # melon the three orders together emptied the account on day 0 -- no cash
+    # to hire, one farmer for 23 tiles, the whole farm dead by day 3.
+    for crop in ("MELON", "STRAWBERRY", "WHEAT"):
         if day > _last_plant_day(crop):
             continue
         bare = sum(1 for xy in crop_plot
                    if me["tiles"][xy[1]][xy[0]] is None and crop_of(xy) == crop)
         short = bare - seeds.get(crop, 0)
-        affordable = int(max(0, money - LAND_CASH_BUFFER) // CROP_SPEC[crop]["seed"])
+        cost = CROP_SPEC[crop]["seed"]
+        affordable = int(max(0, money - LAND_CASH_BUFFER) // cost)
         want = min(short, affordable)
         if want > 0:
             orders.append(["BUY_SEED", crop, want])
+            money -= want * cost
 
     return orders[:MAX_MARKET_ORDERS]
 
@@ -674,15 +706,23 @@ def agent(obs):
 
     # Melon sits just outside the animal zone: it needs no shed trips, only
     # daily water, so distance from the shed costs it little.
-    melon_zone = set(full_plot[len(animal_zone):len(animal_zone) + MELON_TILES])
+    m0 = len(animal_zone)
+    melon_zone = set(full_plot[m0:m0 + MELON_TILES])
+    s0 = m0 + MELON_TILES
+    berry_zone = set(full_plot[s0:s0 + STRAWBERRY_TILES])
 
     def crop_of(xy):
-        return "MELON" if tuple(xy) in melon_zone else "WHEAT"
+        xy = tuple(xy)
+        if xy in melon_zone:
+            return "MELON"
+        if xy in berry_zone:
+            return "STRAWBERRY"
+        return "WHEAT"
 
     n_crop_units = max(0, n_units - n_ranchers)
     crop_plot = full_plot[len(animal_zone):][: TILES_PER_UNIT * max(1, n_crop_units)]
     # Never leave melon ground unworked: it outearns wheat many times over.
-    for xy in melon_zone:
+    for xy in melon_zone | berry_zone:
         if xy not in crop_plot:
             crop_plot.append(xy)
 
@@ -694,17 +734,32 @@ def agent(obs):
     seeds_left = dict(private.get("seeds", {}) or {})
     inventories = private.get("inventories", []) or [{}]
 
+    # Is the opponent about to dump melon? Their tiles are public.
+    rush = False
+    if FRONT_RUN and len(obs["farms"]) > 1:
+        them = obs["farms"][1 - player]
+        ripe = CROP_SPEC["MELON"]["harvest_age"]
+        for row in them["tiles"]:
+            for t in row:
+                if (isinstance(t, dict) and t.get("kind") == "PLANT"
+                        and t.get("crop") == "MELON"
+                        and day - t.get("planted_day", day) >= ripe - 1):
+                    rush = True
+                    break
+            if rush:
+                break
+
     ops = []
     for i, pos in enumerate(units):
         inv = inventories[i] if i < len(inventories) and isinstance(inventories[i], dict) else {}
         carried = sum(inv.values())
         if i < n_ranchers:
             ops.append(_rancher_op(tiles, pos, rancher_blocks[i], day, hour, inv,
-                                   carried, shed, wheat_in_shed, animal_of))
+                                   carried, shed, wheat_in_shed, animal_of, rush and inv.get("MELON", 0) > 0))
         else:
             block = crop_blocks[i - n_ranchers] if n_crop_units else []
             op, used = _farmhand_op(tiles, pos, block, crop_plot, day, hour,
-                                    carried, seeds_left, crop_of)
+                                    carried, seeds_left, crop_of, rush and inv.get("MELON", 0) > 0)
             if used:
                 seeds_left[used] = seeds_left.get(used, 0) - 1
             ops.append(op)
