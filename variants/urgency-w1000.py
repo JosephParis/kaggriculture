@@ -186,13 +186,11 @@ TIEBREAK_DIST = _P("TIEBREAK_DIST", 1)
 # something, then walk back. Scoring `tier * URGENCY_W + dist` instead lets a
 # near task outrank a slightly more urgent far one.
 #
-# The board is 10x10, so the largest possible distance is 18, and any value
-# above that reproduces the old lexicographic order exactly. Swept 0..1000:
-# everything from 5 up is byte-identical to lexicographic, and the curve
-# rises all the way down to 0. At 0 a unit simply does the nearest actionable
-# task and urgency only breaks ties between equidistant ones -- which beat
-# the previous build 24-0 head to head, both seats.
-URGENCY_W = _P("URGENCY_W", 0)
+# The board is 10x10, so the largest possible distance is 18: at 1000 this is
+# exactly the old lexicographic order, which is what makes that the safe
+# default until a sweep says otherwise. Rescues (tier 0) stay effectively
+# preemptive for any value above ~18.
+URGENCY_W = _P("URGENCY_W", 1000)
 
 # How to order tiles before splitting them into per-unit blocks.
 #   0 = by distance from the shed. Tiles at equal distance lie on a diagonal,
