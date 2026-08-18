@@ -197,10 +197,16 @@ MELON_LAST_PLANT = _P("MELON_LAST_PLANT", 19)
 # yields four times off one planting, so it costs one plant action and then
 # only survival watering. Worth ~$34/action against wheat's ~$14, and the
 # town drains 25/day so the price holds.
-# Swept off: it loses 7-13 head to head. Four units off one planting is
-# still only 0.24/tile/day, it occupies the tile for 17 days, and its
-# survival watering competes with the herd. Wheat for feed beats it.
-STRAWBERRY_TILES = _P("STRAWBERRY_TILES", 0)
+# Takes every tile the herd and the melon block do not, so the farm grows no
+# wheat at all -- feed is bought. That is the point: a wheat tile earns ~$16
+# a day against strawberry's ~$28, and buying feed had already made wheat
+# nearly redundant without anything being re-derived to replace it.
+#
+# This was rejected once, at 8 and 14 tiles, both of which lose. The curve is
+# not monotonic: 16 wins, and it keeps improving to the point where
+# strawberry covers everything left. Two samples on the wrong side of a
+# threshold looked like a dead idea.
+STRAWBERRY_TILES = _P("STRAWBERRY_TILES", 44)
 
 # Wheat planted later than this cannot reach max_yield_day before the season
 # ends, so the tile is better left empty.
