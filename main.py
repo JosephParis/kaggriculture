@@ -178,6 +178,20 @@ FRONT_RUN = _P("FRONT_RUN", 0)
 # unit work its block in a fixed order regardless of where it is standing.
 TIEBREAK_DIST = _P("TIEBREAK_DIST", 1)
 
+# How many steps of walking one tier of urgency is worth.
+#
+# Task choice used to be strictly lexicographic: the most urgent tile in the
+# block won no matter how far away it was, and distance only broke ties inside
+# a tier. That is why a unit would walk seven tiles past a ripe melon to water
+# something, then walk back. Scoring `tier * URGENCY_W + dist` instead lets a
+# near task outrank a slightly more urgent far one.
+#
+# The board is 10x10, so the largest possible distance is 18: at 1000 this is
+# exactly the old lexicographic order, which is what makes that the safe
+# default until a sweep says otherwise. Rescues (tier 0) stay effectively
+# preemptive for any value above ~18.
+URGENCY_W = _P("URGENCY_W", 1000)
+
 # How to order tiles before splitting them into per-unit blocks.
 #   0 = by distance from the shed. Tiles at equal distance lie on a diagonal,
 #       so a "contiguous" chunk is an arc spanning the whole quadrant.
@@ -442,12 +456,14 @@ def _best_task(tiles, block, classify, pos):
         if got is None:
             continue
         tier, op = got
-        key = (tier, TIEBREAK_DIST * (abs(tx - pos[0]) + abs(ty - pos[1])))
+        dist = TIEBREAK_DIST * (abs(tx - pos[0]) + abs(ty - pos[1]))
+        key = (tier * URGENCY_W + dist, tier, dist)
         if best is None or key < best[0]:
             best = (key, (tx, ty), op)
     if best is None:
         return None
-    (tier, _dist), target, op = best
+    _cost, tier, _dist = best[0]
+    target, op = best[1], best[2]
     return (tier, target, op)
 
 
@@ -460,12 +476,14 @@ def _best_task_at(block, classify_at, pos):
         if got is None:
             continue
         tier, op = got
-        key = (tier, TIEBREAK_DIST * (abs(tx - pos[0]) + abs(ty - pos[1])))
+        dist = TIEBREAK_DIST * (abs(tx - pos[0]) + abs(ty - pos[1]))
+        key = (tier * URGENCY_W + dist, tier, dist)
         if best is None or key < best[0]:
             best = (key, (tx, ty), op)
     if best is None:
         return None
-    (tier, _dist), target, op = best
+    _cost, tier, _dist = best[0]
+    target, op = best[1], best[2]
     return (tier, target, op)
 
 
