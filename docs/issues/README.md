@@ -80,8 +80,10 @@ the ordering below assumed.
 | [07](07-livestock.md) | Livestock: the goose/egg/fertilizer engine | L | **done** |
 | [04](04-melon.md) | Crop mix: melon for the premium slice | M | **done** |
 
-**Current baseline: 100% vs `starter`, median $51,018 over 12 games (theirs
-$3,519).** Beat that number or it is a regression. `py -3.12 eval.py --games 12`.
+**Current baseline: 100% vs `starter`, median $99,851 over 12 paired games
+(seeds 1000..1011).** Beat that number or it is a regression.
+`py -3.12 eval.py --games 12 --seed 1000`. Note `eval.py` seeds randomly unless
+`--seed` is given, so two runs without it are not comparable.
 
 Where it came from:
 
@@ -112,7 +114,7 @@ and put geese and melon on the good tiles".
 |---|---|---|---|
 | 15 | Rancher action budget: eggs sit at the `max_held` cap | M | **done** |
 | 14 | Endgame: liquidate by day 29, unsold inventory scores zero | S | **done** |
-| [03](03-labour-scheduling.md) | Labour scheduling: assignment across many units | L | open |
+| [03](03-labour-scheduling.md) | Labour scheduling: assignment across many units | L | **open — half done** |
 | 10 | Sell timing: dump `log` goods, meter `linear`/`sq` goods | M | open |
 | 09 | Opponent modelling: both farms are visible | L | open |
 
@@ -151,9 +153,12 @@ is the opponent.
 - **09 (opponent modelling)**, promoted back from P3 for the same reason. Both
   farms are public. Knowing whether the opponent is growing melon decides
   whether our second melon cycle is worth planting at all.
-- **03 (labour scheduling)** because ~65% of unit-actions are still movement.
-  Territories and a distance tiebreak got it from 72%; the rest needs actual
-  routing rather than one greedy step at a time.
+- **03 (labour scheduling)** because movement still dominates unit-actions.
+  Territories and a distance tiebreak got it from 72% to ~65%, and choosing the
+  nearest task over the most urgent one (`URGENCY_W=0`, 18 August) was worth
+  24-0 head to head — but the agent still takes one greedy step per unit per
+  turn. The rest needs a real per-unit tour, and the movement share wants
+  re-measuring now that the tiebreak changed.
 
 Also worth knowing: **egg and wheat prices rise all season** (to ~$92 and ~$47
 by day 28) because town shops drain them faster than we supply. Nothing in the
