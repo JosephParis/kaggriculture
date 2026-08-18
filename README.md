@@ -37,12 +37,18 @@ Prefer reading it over probing the simulator.
 
 - **Submissions are manual.** They are rate-limited and cannot be withdrawn,
   so nothing automated ever submits. Build and evaluate locally.
-- **The account must be identity-verified before it can submit at all.**
-  Without it `CreateSubmission` returns a bare `403 Forbidden`; only the
-  response body says why (`IdentityVerificationRequired`). Auth, joining the
-  competition and the file upload all succeed first, so the failure looks like
-  a broken token and is not. Verify a phone number at kaggle.com/settings.
-  A 403 here consumes nothing -- no submission is recorded.
+- **Submitting needs Persona identity verification, which is not phone
+  verification.** Phone verification is a separate, weaker check and having
+  it is not enough. Kaggle requires Persona (facial recognition / ID
+  document) for competitions awarding points, medals or prizes, and this one
+  has a $50k pool. Until it is done `CreateSubmission` returns a bare
+  `403 Forbidden`, and only the response body says why
+  (`IdentityVerificationRequired`). Auth, competition entry and the file
+  upload all succeed first, so it presents as a broken token and is not.
+- **Persona cannot be completed from the CLI.** It is an interactive browser
+  flow, so the first submission has to go through the website; the CLI works
+  for every one after that. A 403 here records no submission, so it costs
+  nothing against the rate limit.
 - This repo is public. Kaggle permits public sharing; what it forbids is private
   sharing outside a team. The tradeoff accepted here is that competitors can
   read the agent while the competition is live.
