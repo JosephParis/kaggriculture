@@ -191,12 +191,18 @@ The plan above was implemented and swept. Median against `starter`, 12 games:
 |---|---|---|
 | Original single-farmer wheat loop | $6,024 | |
 | Hire, expand, hold territory | $14,724 | labour and land, no livestock |
-| Goose/egg/fertilizer engine | **$28,442** | 100% win rate, p99 0.74ms/turn |
+| Goose/egg/fertilizer engine | $28,442 | |
+| Melon, and harvesting before the egg cap | $48,857 | |
+| Endgame liquidation | **$51,018** | 100% win rate, p99 0.83ms/turn |
 
 Where the estimates held, and where they did not:
 
-- **Geese were the engine, as predicted.** The per-tile advantage over crops is
-  real and large.
+- **Melon was the biggest single win**, worth ~$20,000 a game, and the
+  $130/action estimate above held up. What the plan missed is that melon ripens
+  the same day it caps out, so the tile frees five days earlier than the table
+  implies.
+- **Geese were the engine, as predicted**, but had to shrink from 18 coops to 12
+  to pay for the melon ground. The two compete for the same tiles and crew.
 - **Fertilizer is the best single action**, as predicted.
 - **Growing feed beats buying it** — this was wrong in the plan above. Bought
   wheat costs $25-45 against the ~$20 ours sells for, and it competes for the
@@ -204,12 +210,24 @@ Where the estimates held, and where they did not:
 - **The third quadrant never pays.** $4,000 off the final score for 25 tiles
   that cannot earn it back. Buy two, not three.
 - **Flock size falls off a cliff at ~24 geese**, where the animal zone eats the
-  tiles and the ranchers eat the crew. 18 is the peak.
+  tiles and the ranchers eat the crew. 18 was the peak before melon, 12 after.
 - **The $30k-50k ceiling was roughly right against a weak opponent** and roughly
   double what is available against a strong one. Two copies of this agent land
   at ~$18k each: they crash each other's fertilizer and egg prices. **The
   shared market is worth about half the score.** That moves sell timing and the
   premium races from "margins" to the main event.
+
+Three things the season-long traces turned up that reading the source would
+not have:
+
+- **Egg and wheat prices rise all season**, to ~$92 and ~$47 by day 28, because
+  town shops drain them faster than either player supplies. The plan treated
+  them as flat sinks. Nothing in the agent exploits the drift yet.
+- **About 65% of unit-actions are movement**, even after territories and a
+  distance tiebreak brought it down from 72%. That is the real budget.
+- **Unsold inventory is a live leak.** Ranchers ended every game holding eggs,
+  and a goose that never got placed is $300 deleted, because geese cannot be
+  sold.
 
 The recurring lesson is that none of the four bugs which made livestock look
 unprofitable were visible in the score. Each took a trace or an action tally.
