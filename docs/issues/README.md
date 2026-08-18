@@ -56,58 +56,98 @@ Starting bank is $3,000. Land: NW free, then $1k / $2k / $4k.
 
 ## The backlog
 
-### P0 — can't do anything without these
+Reprioritised 17 August 2026 — see [STRATEGY.md](../STRATEGY.md) for the
+reasoning. Two things changed everything: the environment source is readable on
+this machine, so mechanics never need probing; and hiring 2–4 hands nearly
+doubles the baseline for $7/day, so the engine is much further from optimal than
+the ordering below assumed.
+
+### P0 — the engine
 
 | # | Issue | Effort | Status |
 |---|---|---|---|
 | [01](01-baseline-and-harness.md) | Baseline agent and local eval harness | M | **done** |
-| [02](02-measure-the-market.md) | Measure the price function empirically | M | open |
+| [02](02-measure-the-market.md) | Measure the price function empirically | M | **closed — answered from source** |
+| [13](13-sweep-harness.md) | Parameter sweep harness over batched games | M | **done** |
+| 05+06 | Hire-and-expand: hands and land scale together | M | **done** |
+| [07](07-livestock.md) | Livestock: the goose/egg/fertilizer engine | L | **done** |
+| [04](04-melon.md) | Crop mix: melon for the premium slice | M | **done** |
 
-**Current baseline: 100% vs `starter` over 20 games, median $6,024 (theirs
-$3,560).** Beat that number or it is a regression. `py eval.py --games 20`.
+**Current baseline: 100% vs `starter`, median $51,018 over 12 games (theirs
+$3,519).** Beat that number or it is a regression. `py -3.12 eval.py --games 12`.
 
-Labour is confirmed as the binding constraint, not land or money. The first
-baseline planted 15 tiles, could not water them, and the farm was weeds by day
-6 — final profit $46. Sizing the plot to the workforce took it to $3,024 profit
-with no other change. Every later decision (hiring, land, animals) is really a
-question about labour capacity.
+Where it came from:
 
-### P1 — the actual game
+| | median vs `starter` |
+|---|---|
+| Original single-farmer wheat loop | $6,024 |
+| Hire, expand, hold territory | $14,724 |
+| Goose/egg/fertilizer engine | $28,442 |
+| Melon, and harvesting before the egg cap | $48,857 |
+| Endgame liquidation | **$51,018** |
+
+Swept defaults, all on paired seeds: 12 coops, 20 melon tiles, 2 quadrants,
+8 tiles per unit, feed grown rather than bought.
+
+**$51,018 is an upper bound, not an expectation.** Two copies of this agent land
+at ~$25k each, because they crash each other's melon, fertilizer and egg prices.
+The leaderboard is not `starter`. Measure against `--opponent main.py` too.
+
+Labour was the binding constraint early: the first baseline planted 15 tiles,
+could not water them, and the farm was weeds by day 6 — final profit $46.
+Sizing the plot to the workforce took it to $3,024. The correction to that
+lesson is that the answer was never "plant less", it was "hire more, buy land,
+and put geese and melon on the good tiles".
+
+### P1 — making the engine sharp
 
 | # | Issue | Effort | Status |
 |---|---|---|---|
-| [03](03-labour-scheduling.md) | Labour scheduling: the real constraint | L | open |
-| 04 | Crop mix: when melon beats wheat | M | open |
-| 05 | Hiring policy against the fibonacci cost curve | M | open |
-| 06 | Land expansion: when $1k/$2k/$4k pays back | M | open |
-
-### P2 — compounding advantages
-
-| # | Issue | Effort | Status |
-|---|---|---|---|
-| 07 | Livestock: feed economics and the wheat dependency | L | open |
-| 08 | Town shop demand: track unlocks, sell into them | M | open |
+| 15 | Rancher action budget: eggs sit at the `max_held` cap | M | **done** |
+| 14 | Endgame: liquidate by day 29, unsold inventory scores zero | S | **done** |
+| [03](03-labour-scheduling.md) | Labour scheduling: assignment across many units | L | open |
+| 10 | Sell timing: dump `log` goods, meter `linear`/`sq` goods | M | open |
 | 09 | Opponent modelling: both farms are visible | L | open |
-| 10 | Sell timing against the shared market | M | open |
 
-### P3 — operational
+### P2 — margins
 
 | # | Issue | Effort | Status |
 |---|---|---|---|
+| 08 | Town shop demand: track unlocks, sell into scarcity | M | open |
 | 11 | Submission pipeline and leaderboard tracking | S | open |
 | 12 | Replay analysis tooling | M | open |
+
+### P3 — nothing here at the moment
+
+Issue 09 (opponent modelling) was demoted here while our own baseline was an
+order of magnitude away. It is back in P1: the production wins are spent, and
+self-play says the opponent is now where the score is.
 
 ## Dependencies
 
 ```
 01 (harness) ──> everything: nothing can be measured without it
-02 (market)  ──> 04, 10  (crop mix and sell timing are both price problems)
-03 (labour)  ──> 05, 06, 07  (hiring, land and animals all buy labour or need it)
-07 (animals) <── wheat engine from 03/04
+13 (sweeps)  ──> 04, 05+06, 07, 10  (every policy constant wants tuning)
+05+06        ──> 03, 07  (hands and land are what livestock and scheduling need)
+07 (animals) <── wheat engine from 04, for feed
+04 (melon)   ──> 10, 14  (the premium race is a timing problem)
 ```
 
 ## If you only do three
 
-**01**, **02**, **03**. The harness makes everything else measurable, the market
-determines whether producing more is even good, and labour scheduling is the
-constraint every other decision runs into.
+**10**, **09**, **03** - the cheap production wins are spent, and what is left
+is the opponent.
+
+- **10 (sell timing)** because self-play still halves the score. Against
+  `starter` we make $51k; against a copy of ourselves, $25k. Every remaining
+  point is in the shared market.
+- **09 (opponent modelling)**, promoted back from P3 for the same reason. Both
+  farms are public. Knowing whether the opponent is growing melon decides
+  whether our second melon cycle is worth planting at all.
+- **03 (labour scheduling)** because ~65% of unit-actions are still movement.
+  Territories and a distance tiebreak got it from 72%; the rest needs actual
+  routing rather than one greedy step at a time.
+
+Also worth knowing: **egg and wheat prices rise all season** (to ~$92 and ~$47
+by day 28) because town shops drain them faster than we supply. Nothing in the
+agent exploits that yet.

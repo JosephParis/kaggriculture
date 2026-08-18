@@ -1,44 +1,190 @@
 """
-Kaggriculture baseline agent: tend a plot you can actually maintain.
+Kaggriculture agent: buy labour, buy land, run geese, grow wheat to feed them.
 
-The naive version of this planted every tile it could reach and lost the farm.
-One farmer gets 24 actions per day; watering a tile costs one action plus the
-walk to it, so the sustainable plot is roughly a dozen tiles, not twenty-five.
-Planting fifteen meant most went two days unwatered and turned to weeds — the
-whole farm was weeds by day 6, after which the farmer stood on its one surviving
-plant and worked that single tile for the remaining 24 days. Final profit: $34.
+The single-farmer wheat baseline scored ~$6,000. What was missing:
 
-So the policy here is deliberately small. Claim a compact plot near the shed,
-and never plant more than can be watered daily. Labour is the binding
-constraint in this game, not land and not money.
+  1. **Labour is nearly free.** A hire costs `fib(n)` for the n-th hire of the
+     day and resets every morning, so eight hands cost $54/day for 192 extra
+     actions -- $0.28 an action against roughly $11 of return.
+  2. **Nobody needs to walk to the shed to store things.** `_end_of_day` drops
+     every unit's inventory into the shed automatically. Units stay in the
+     field and only make a shed trip when the 100-item shed cap is at risk, or
+     when they need to fetch feed.
+  3. **Watering every day is a waste.** A plant dies only after *two*
+     consecutive dry days, and watering only adds yield inside the bonus
+     window, so wheat wants watering on days 0, 2, 3, 4 -- not day 1.
+  4. **Geese dominate crops per tile.** A goose is $300 plus one BUILD_COOP and
+     returns roughly $140/day for ~3.5 actions: two eggs, because CARE banks a
+     bonus that pays out on the next day's production, plus one fertilizer.
+     A wheat tile returns about $16/day. Eggs are a `log` sink that never
+     crashes, and fertilizer starts the day after placement, before the first
+     egg does.
 
-Priority order per unit, and the reasoning:
+Land and labour buy each other, and both exist to serve the geese: wheat is
+grown mainly as feed and sold only above the reserve.
 
-  1. Deliver carried produce — it is worth nothing until sold, and a full
-     unit cannot do anything else useful.
-  2. Water anything unwatered — two missed days destroys the plant outright.
-     Losing a tile costs far more than a delayed harvest.
-  3. Harvest what is ready — frees the tile for replanting.
-  4. Plant bare ground inside the plot.
-  5. Dig weeds — recovers a tile, but nothing is dying while it waits.
+Units hold a **fixed territory** for the day rather than chasing whatever tile
+is most urgent globally. Re-deciding globally every turn made units oscillate
+and the farm filled with weeds. The tiles nearest the shed are reserved for
+coops, so feed trips stay short, and the units working them are ranchers for
+the whole day.
+
+Everything is greedy and per-turn. `actTimeout` is 1 second across 720 turns,
+so there is no room for search.
+
+Policy constants can be overridden by `KAG_*` environment variables so
+`sweep.py` can tune them without editing this file; the defaults are what gets
+submitted. See docs/STRATEGY.md for the economics behind the numbers.
 """
+import os
 
-SHED_TILES = [(4, 4), (5, 4), (4, 5), (5, 5)]
+BOARD = 10
+SHED_ACCESS = [(4, 4), (5, 4), (4, 5), (5, 5)]
 
-WHEAT_FIRST_YIELD_DAY = 2
-SEED_BUFFER = 6
-MIN_CASH_FOR_SEED = 100
+# Copied from the environment source. A submitted agent cannot import
+# kaggle_environments, so these are duplicated rather than referenced.
+# Per crop: seed cost, the age to harvest at, and the watering window that
+# actually adds yield. Watering outside the window only keeps the plant alive.
+#
+# Melon is the premium play. Watering ages 6-10 takes it from 1 unit to its cap
+# of 6, and first_yield_day is 10, so it harvests the same day it maxes out --
+# ages 11 and 12 add nothing and only risk the decay that starts at 13. Ten
+# actions for 6 melons at ~$217 is ~$130/action, against wheat's ~$11.
+CROP_SPEC = {
+    "WHEAT": {"seed": 10, "harvest_age": 4, "window": (2, 4)},
+    "MELON": {"seed": 80, "harvest_age": 10, "window": (6, 10)},
+}
+WHEAT_SEED_COST = CROP_SPEC["WHEAT"]["seed"]
+WHEAT_MAX_YIELD_DAY = CROP_SPEC["WHEAT"]["harvest_age"]
+GOOSE_COST = 300
+GOOSE_MAX_HELD = 4
+LAND_PRICES = [1000, 2000, 4000]
+SEASON_DAYS = 30
+MAX_MARKET_ORDERS = 10
+SHED_CAPACITY = 100
 
-# Plot tiles, nearest-to-shed first. The NW quadrant is x,y in 0..4 and the only
-# land that starts unlocked; (4,4) is left out because it is the drop point.
-PLOT = [
-    (3, 4), (4, 3), (3, 3), (2, 4), (4, 2), (2, 3), (3, 2), (2, 2),
-    (1, 4), (4, 1), (1, 3), (3, 1),
-]
 
-# Tiles one unit can keep watered in a day, allowing for movement and the
-# occasional trip to the shed. Tuned by measurement, not derived.
-TILES_PER_UNIT = 6
+def _P(name, default):
+    """Policy knob, overridable from the environment for sweeps."""
+    raw = os.environ.get("KAG_" + name)
+    if raw is None:
+        return default
+    return type(default)(raw)
+
+
+# Tiles one unit can keep alive in a day, including the walk out from the shed.
+# Swept: 8 beats 7 and 9 by ~$1,700. The crew saturates at about eight tiles
+# each, and this also sets the hire target, so it is the sharpest knob here.
+TILES_PER_UNIT = _P("TILES_PER_UNIT", 8)
+
+# The marginal hand costs ~$6/action around the twelfth hire against ~$11 of
+# return, so the curve is still positive here but flattening.
+MAX_HANDS = _P("MAX_HANDS", 10)
+
+# How many quadrants to buy. Land comes straight off the final score, and the
+# third quadrant costs $4,000 -- swept at $12,502 for two against $9,405 for
+# three, so it never earns that back in the days it has left.
+MAX_LAND = _P("MAX_LAND", 2)
+LAND_CASH_BUFFER = _P("LAND_CASH_BUFFER", 300)
+
+# Coops to aim for, on the tiles nearest the shed. Swept at 12 once melon
+# existed to compete for tiles; without melon the peak was 18, and it
+# collapses past 24 where geese crowd out the wheat that feeds them.
+GOOSE_TARGET = _P("GOOSE_TARGET", 12)
+GEESE_PER_RANCHER = _P("GEESE_PER_RANCHER", 5)
+# Geese bought before the wheat engine runs simply starve: there is no feed in
+# the shed and no cash left to buy any. Hold back enough to keep planting.
+GOOSE_CASH_BUFFER = _P("GOOSE_CASH_BUFFER", 700)
+GOOSE_START_DAY = _P("GOOSE_START_DAY", 3)
+GOOSE_BUY_RATE = _P("GOOSE_BUY_RATE", 3)
+# A goose needs about three days to earn its $300 back, so stop buying once
+# the season cannot pay for one.
+LAST_GOOSE_DAY = _P("LAST_GOOSE_DAY", 24)
+
+# Wheat held back per goose so feeding never fails. An unfed goose still lays,
+# but two consecutive unfed days and it escapes for good.
+FEED_RESERVE_PER_GOOSE = _P("FEED_RESERVE_PER_GOOSE", 3)
+FEED_CARRY = _P("FEED_CARRY", 6)
+# Whether to top the feed reserve up from the market rather than relying on our
+# own harvest. Swept at 0: bought wheat costs $25-45 against the ~$20 our own
+# sells for, and it competes for the 100-item shed. Growing feed is cheaper
+# than buying it, even though a goose returns $140/day either way.
+FEED_BUY = _P("FEED_BUY", 0)
+
+# Carry this much before making a shed trip. Harvests arrive in waves, and a
+# wave larger than the 100-item shed cap is silently discarded at end of day.
+DROP_THRESHOLD = _P("DROP_THRESHOLD", 14)
+
+# From this hour on the last day, units stop tending and start converting:
+# harvest what is ripe and carry it to the shed. Unsold inventory scores zero,
+# and the end-of-day drop happens after the reward is taken, so anything still
+# in a unit's hands at the buzzer is thrown away.
+FLUSH_HOUR = _P("FLUSH_HOUR", 15)
+
+# Weight on distance when breaking ties within an urgency tier. 0 makes a
+# unit work its block in a fixed order regardless of where it is standing.
+TIEBREAK_DIST = _P("TIEBREAK_DIST", 1)
+
+# How to order tiles before splitting them into per-unit blocks.
+#   0 = by distance from the shed. Tiles at equal distance lie on a diagonal,
+#       so a "contiguous" chunk is an arc spanning the whole quadrant.
+#   1 = serpentine rows, which keeps consecutive tiles genuinely adjacent.
+BLOCK_ORDER = _P("BLOCK_ORDER", 1)
+
+# Tiles given over to melon, taken just outside the animal zone. The market
+# pays $21,721 for the first 100 melons and almost nothing past 150, and the
+# town drains only one a day, so this is a race against the opponent rather
+# than a production problem: plant early, sell on harvest. Swept at 20; 26
+# is $14,000 worse, because past ~150 units the price is at the floor and
+# the tiles would have been better as geese.
+MELON_TILES = _P("MELON_TILES", 20)
+MELON_LAST_PLANT = _P("MELON_LAST_PLANT", 19)
+
+# Wheat planted later than this cannot reach max_yield_day before the season
+# ends, so the tile is better left empty.
+def _last_plant_day(crop):
+    """Latest day a crop can be planted and still reach harvest.
+
+    Melon also takes a policy cap: a second cycle harvests into a market its
+    own first cycle already knocked down, so late plantings can be worth less
+    than the wheat or geese the tile would otherwise carry.
+    """
+    latest = SEASON_DAYS - 1 - CROP_SPEC[crop]["harvest_age"]
+    if crop == "MELON":
+        return min(latest, MELON_LAST_PLANT)
+    return latest
+
+
+LAST_PLANT_DAY = _last_plant_day("WHEAT")
+
+# Whether to CARE for geese. One action banks +1 on the next production, so it
+# is worth ~$40/action -- real, but it competes with harvesting at $160.
+CARE_ENABLED = _P("CARE_ENABLED", 1)
+# Held eggs at which a goose is worth a harvest trip.
+HARVEST_AT = _P("HARVEST_AT", GOOSE_MAX_HELD - 1)
+
+# Tier ordering for tasks, lower being more urgent. These are ordered by
+# dollars per action, which is the only currency that matters here:
+#
+#   harvest a full goose  4 eggs           ~$160   <- was ranked below fertilizer
+#   collect fertilizer    1 unit           ~$80
+#   feed                  enables 2 eggs   ~$80/day
+#   care                  +1 egg            ~$40
+#
+# Fertilizer used to outrank harvesting, so a rancher emptied every fertilizer
+# tile in its block before touching a single goose. Five of sixteen birds then
+# sat at max_held from day 20 to the end of the season, destroying every egg
+# they produced -- about $4,500 a game.
+T_RESCUE = 0        # dies or escapes tonight if untouched
+T_SETUP = 1         # a goose not yet earning is the most expensive idle asset
+T_HARVEST_FULL = 2  # at max_held: tonight's production is being thrown away
+T_FERT = 3
+T_FEED = 4
+T_HARVEST = 5
+T_CARE = 6
+T_WATER = 7         # yield bonus only; the plant is in no danger
+T_PLANT = 8
+T_DIG = 9
 
 
 def _step_toward(x, y, tx, ty):
@@ -53,65 +199,382 @@ def _step_toward(x, y, tx, ty):
     return "PASS"
 
 
-def _shed_tile(tiles):
-    """The drop point. Only (4,4) is unlocked at the start; the rest need land."""
-    for (tx, ty) in SHED_TILES:
-        if 0 <= ty < len(tiles) and 0 <= tx < len(tiles[0]) and tiles[ty][tx] != "LOCKED":
-            return (tx, ty)
-    return (4, 4)
+def _quadrant_rank(x, y):
+    return (0 if y < 5 else 2) + (0 if x < 5 else 1)
 
 
-def _classify(tile, day):
-    """What this tile needs, or None. Lower number = more urgent."""
-    if tile == "LOCKED":
-        return None
+def _shed_dist(x, y):
+    return abs(x - 4.5) + abs(y - 4.5)
+
+
+def _nearest_shed_tile(x, y):
+    return min(SHED_ACCESS, key=lambda t: abs(t[0] - x) + abs(t[1] - y))
+
+
+def _workable_tiles(tiles):
+    """Unlocked tiles we are willing to use, nearest the shed first.
+
+    The four shed-access tiles stay clear: they are the only squares from which
+    PICKUP and DROP work, and feed comes through them every day.
+    """
+    out = []
+    for y, row in enumerate(tiles):
+        for x, tile in enumerate(row):
+            if tile == "LOCKED" or (x, y) in SHED_ACCESS:
+                continue
+            out.append((_shed_dist(x, y), x, y))
+    out.sort()
+    return [(x, y) for _, x, y in out]
+
+
+def _block_key(t):
+    """Sort key that keeps a unit's block spatially compact.
+
+    Ordering by distance from the shed looks tidy and is wrong: every tile at
+    the same distance sits on a diagonal, so a contiguous slice of that order
+    is an arc stretched across the quadrant and the unit walks it end to end.
+    Serpentine rows keep consecutive tiles next to each other.
+    """
+    x, y = t
+    if not BLOCK_ORDER:
+        return (_quadrant_rank(x, y), _shed_dist(x, y), x, y)
+    return (_quadrant_rank(x, y), y, x if y % 2 == 0 else -x)
+
+
+def _territories(plot, n_units):
+    """Split a plot into `n_units` contiguous, spatially local blocks.
+
+    Sorting by quadrant before distance keeps each block in one corner of the
+    board, so a unit walks between neighbouring tiles instead of across the
+    farm. Interleaving instead (`plot[i::n]`) scatters each unit's tiles over
+    the whole board and burns the day on movement.
+    """
+    blocks = [[] for _ in range(max(1, n_units))]
+    if not plot:
+        return blocks
+    ordered = sorted(plot, key=_block_key)
+    per = max(1, (len(ordered) + len(blocks) - 1) // len(blocks))
+    for i, tile in enumerate(ordered):
+        blocks[min(len(blocks) - 1, i // per)].append(tile)
+    return blocks
+
+
+def _needs_water(tile, day):
+    """Water only when it buys something: survival, or yield.
+
+    A plant dies after two consecutive dry days, so one dry day is free. Inside
+    the bonus window each watering is worth a unit of yield, so water there
+    regardless. Outside it, water only to keep the plant alive -- which for
+    melon means alternate days for its first six, then daily through the window.
+    """
+    if tile.get("watered_today"):
+        return False
+    if tile.get("consecutive_unwatered", 0) >= 1:
+        return True  # dry again tonight and it is a weed by morning
+    spec = CROP_SPEC.get(tile.get("crop"))
+    if spec is None:
+        return False
+    start, end = spec["window"]
+    return start <= day - tile.get("planted_day", day) <= end
+
+
+def _crop_task(tile, day, crop="WHEAT"):
+    """What a crop tile needs, or None. `crop` is what this tile is zoned for."""
+    last_day = day >= SEASON_DAYS - 1
     if tile is None:
-        return (3, "PLANT")
+        if last_day or day > _last_plant_day(crop):
+            return None
+        return (T_PLANT, "PLANT")
     if not isinstance(tile, dict):
         return None
     kind = tile.get("kind")
     if kind == "PLANT":
-        if not tile.get("watered_today"):
-            return (0, "WATER")
-        if day - tile.get("planted_day", day) >= WHEAT_FIRST_YIELD_DAY:
-            return (1, "HARVEST")
+        age = day - tile.get("planted_day", day)
+        ripe = CROP_SPEC.get(tile.get("crop"), CROP_SPEC["WHEAT"])["harvest_age"]
+        if tile.get("yield_units", 0) > 0 and (age >= ripe or last_day):
+            return (T_HARVEST, "HARVEST")
+        # On the last day a plant that cannot be harvested is worth nothing,
+        # and watering it is an action not spent converting stock to cash.
+        if last_day:
+            return None
+        if _needs_water(tile, day):
+            # A plant one dry day from death outranks everything else; a plant
+            # merely missing yield does not.
+            dying = tile.get("consecutive_unwatered", 0) >= 1
+            return (T_RESCUE if dying else T_WATER, "WATER")
         return None
     if kind == "WEED":
-        return (4, "DIG")
+        return None if last_day else (T_DIG, "DIG")
     return None
 
 
-def _unit_plan(tiles, x, y, carried, seeds, day, my_plot, shed):
-    """Return one op for a unit that owns `my_plot`."""
-    # 1. Deliver first.
-    if carried > 0:
-        if (x, y) == shed:
-            return ["DROP"]
-        return [_step_toward(x, y, shed[0], shed[1])]
+def _animal_task(tile, day, has_wheat, has_goose, coop_budget):
+    """What a tile in the animal zone needs, or None."""
+    if tile is None:
+        # An empty coop is a dead tile, so only build when a bird is waiting
+        # for one. Building twelve on day 1 cost us the whole opening.
+        if day <= LAST_GOOSE_DAY and coop_budget > 0:
+            return (T_SETUP, "BUILD_COOP")
+        return _crop_task(tile, day)
+    if day >= SEASON_DAYS - 1 and "animal" not in tile:
+        return None  # placing a bird now earns nothing
+    if not isinstance(tile, dict):
+        return None
+    if "animal" not in tile:
+        if tile.get("kind") == "COOP":
+            return (T_SETUP, "PLACE") if has_goose else None
+        # A crop or a weed squatting on the animal zone; treat it normally.
+        return _crop_task(tile, day)
 
-    # 2-5. Find the most urgent tile in this unit's plot.
+    last_day = day >= SEASON_DAYS - 1
+    held = tile.get("yield_units", 0)
+
+    # Escaping costs the whole $300 animal, so feeding a hungry goose beats
+    # everything. It still lays while unfed; it does not survive two days.
+    if tile.get("consecutive_unfed", 0) >= 1 and not tile.get("fed_today") and has_wheat:
+        return (T_RESCUE, "FEED")
+    # max_held caps unharvested product, so anything at the cap loses a full
+    # night's production. Four eggs for one action also makes this the most
+    # valuable thing a rancher can do.
+    if held >= GOOSE_MAX_HELD or (last_day and held > 0):
+        return (T_HARVEST_FULL, "HARVEST")
+    # One action for ~$80, available every day whether or not it was fed.
+    if tile.get("fertilizer_available"):
+        return (T_FERT, "COLLECT_FERTILIZER")
+    if not tile.get("fed_today") and has_wheat and not last_day:
+        return (T_FEED, "FEED")
+    if held >= HARVEST_AT:
+        return (T_HARVEST, "HARVEST")
+    # CARE banks +1 for the next production, but only pays out on a fed day.
+    if (CARE_ENABLED and tile.get("fed_today")
+            and not tile.get("cared_today") and not last_day):
+        return (T_CARE, "CARE")
+    if held > 0:
+        return (T_HARVEST, "HARVEST")
+    return None
+
+
+def _best_task(tiles, block, classify, pos):
+    """Most urgent task in the block, nearest first within a tier.
+
+    The distance term is not a nicety: without it a unit targets whichever
+    equally-urgent tile happens to come first in block order, and re-targets
+    every time some other tile completes. That churn put 72% of all
+    unit-actions into movement.
+    """
     best = None
-    for (tx, ty) in my_plot:
-        if not (0 <= ty < len(tiles) and 0 <= tx < len(tiles[0])):
+    for (tx, ty) in block:
+        got = classify(tiles[ty][tx])
+        if got is None:
             continue
-        need = _classify(tiles[ty][tx], day)
-        if need is None:
-            continue
-        urgency, op = need
-        if op == "PLANT" and seeds.get("WHEAT", 0) <= 0:
-            continue
-        dist = abs(tx - x) + abs(ty - y)
-        key = (urgency, dist)
+        tier, op = got
+        key = (tier, TIEBREAK_DIST * (abs(tx - pos[0]) + abs(ty - pos[1])))
         if best is None or key < best[0]:
             best = (key, (tx, ty), op)
+    if best is None:
+        return None
+    (tier, _dist), target, op = best
+    return (tier, target, op)
+
+
+def _best_task_at(block, classify_at, pos):
+    """As `_best_task`, but the classifier sees the position so it can look up
+    which crop that tile is zoned for."""
+    best = None
+    for (tx, ty) in block:
+        got = classify_at((tx, ty))
+        if got is None:
+            continue
+        tier, op = got
+        key = (tier, TIEBREAK_DIST * (abs(tx - pos[0]) + abs(ty - pos[1])))
+        if best is None or key < best[0]:
+            best = (key, (tx, ty), op)
+    if best is None:
+        return None
+    (tier, _dist), target, op = best
+    return (tier, target, op)
+
+
+def _go(pos, target, op_here):
+    if tuple(pos) == tuple(target):
+        return op_here
+    return [_step_toward(pos[0], pos[1], target[0], target[1])]
+
+
+def _rancher_op(tiles, pos, block, day, hour, inv, carried, geese_in_shed,
+                wheat_in_shed):
+    """One op for a unit working the animal zone."""
+    has_wheat = inv.get("WHEAT", 0) > 0
+    has_goose = inv.get("GOOSE", 0) > 0
+
+    if day >= SEASON_DAYS - 1 and hour >= FLUSH_HOUR and carried > 0:
+        return _go(pos, _nearest_shed_tile(*pos), ["DROP"])
+
+    animals = [(x, y) for (x, y) in block
+               if isinstance(tiles[y][x], dict) and "animal" in tiles[y][x]]
+    empty_coops = [(x, y) for (x, y) in block
+                   if isinstance(tiles[y][x], dict)
+                   and tiles[y][x].get("kind") == "COOP"
+                   and "animal" not in tiles[y][x]]
+    unfed = [(x, y) for (x, y) in animals if not tiles[y][x].get("fed_today")]
+    starving = [(x, y) for (x, y) in unfed
+                if tiles[y][x].get("consecutive_unfed", 0) >= 1]
+
+    # A bird that misses a second day is gone along with its $300, so fetching
+    # feed for it outranks anything else this unit could be doing -- including
+    # building the coops that were previously starving the flock.
+    if starving and not has_wheat and wheat_in_shed > 0 and day < SEASON_DAYS - 1:
+        return _go(pos, _nearest_shed_tile(*pos),
+                   ["PICKUP", "WHEAT", min(FEED_CARRY, wheat_in_shed)])
+
+    coop_budget = geese_in_shed + inv.get("GOOSE", 0) - len(empty_coops)
+    best = _best_task(tiles, block,
+                      lambda t: _animal_task(t, day, has_wheat, has_goose, coop_budget),
+                      pos)
+
+    # Fetch what the block needs but this unit is not carrying. A shed trip is
+    # only worth making when there is something waiting at the other end.
+    if best is None or best[0] > T_SETUP:
+        if not has_goose and geese_in_shed > 0 and empty_coops:
+            return _go(pos, _nearest_shed_tile(*pos), ["PICKUP", "GOOSE", 1])
+        if unfed and not has_wheat and wheat_in_shed > 0 and day < SEASON_DAYS - 1:
+            return _go(pos, _nearest_shed_tile(*pos),
+                       ["PICKUP", "WHEAT", min(FEED_CARRY, wheat_in_shed)])
 
     if best is None:
+        if carried > 0:
+            return _go(pos, _nearest_shed_tile(*pos), ["DROP"])
         return ["PASS"]
 
-    _, (tx, ty), op = best
-    if (x, y) == (tx, ty):
-        return ["PLANT", "WHEAT"] if op == "PLANT" else [op]
-    return [_step_toward(x, y, tx, ty)]
+    _tier, target, op = best
+    if op == "PLACE":
+        return _go(pos, target, ["PLACE", "GOOSE"])
+    if op == "PLANT":
+        return _go(pos, target, ["PLANT", "WHEAT"])
+    return _go(pos, target, [op])
+
+
+def _farmhand_op(tiles, pos, block, fallback, day, hour, carried, seeds_left,
+                 crop_of):
+    """One op for a unit working crops."""
+    # Get produce into the shed while it can still be sold. Anything still in a
+    # unit's hands when the season ends is scored as nothing, and any wave
+    # bigger than the shed cap is discarded at end of day.
+    last_day_flush = day >= SEASON_DAYS - 1 and hour >= FLUSH_HOUR and carried > 0
+    if carried >= DROP_THRESHOLD or last_day_flush:
+        return _go(pos, _nearest_shed_tile(*pos), ["DROP"]), 0
+
+    def classify_at(xy):
+        crop = crop_of(xy)
+        got = _crop_task(tiles[xy[1]][xy[0]], day, crop)
+        if got is not None and got[1] == "PLANT" and seeds_left.get(crop, 0) <= 0:
+            return None
+        return got
+
+    best = _best_task_at(block, classify_at, pos)
+    if best is None:
+        best = _best_task_at(fallback, classify_at, pos)  # its own block is idle
+    if best is None:
+        return ["PASS"], None
+
+    _tier, target, op = best
+    if op == "PLANT":
+        crop = crop_of(target)
+        return _go(pos, target, ["PLANT", crop]), (crop if tuple(pos) == target else None)
+    return _go(pos, target, [op]), None
+
+
+def _hire_target(full_plot, n_animal_tiles):
+    """Crew size: ranchers for the animal zone, plus hands for the crops.
+
+    Sizing the crew off tile count alone ignored that a goose needs about 3.5
+    actions a day. At a large flock the ranchers ate the entire crew, nobody
+    planted, and the score collapsed to a third of its value.
+    """
+    ranchers = (n_animal_tiles + GEESE_PER_RANCHER - 1) // GEESE_PER_RANCHER
+    croppers = max(0, len(full_plot) - n_animal_tiles) // TILES_PER_UNIT
+    return min(MAX_HANDS, max(1, ranchers + croppers - 1))
+
+
+def _market_orders(me, private, obs, full_plot, crop_plot, n_geese, n_animal_tiles,
+                   crop_of, n_placeable):
+    """Hire, expand, sell the surplus, restock -- in that order.
+
+    Order matters: the queue is capped at `maxMarketOrdersPerTurn` and is
+    processed in sequence, and SELL has to come before any BUY because a full
+    shed makes buying fail.
+    """
+    orders = []
+    day = obs["day"]
+    hour = obs["hour"]
+    money = me["money"]
+    shed = private.get("shed", {}) or {}
+    seeds = private.get("seeds", {}) or {}
+
+    # Hire at the top of the day, before there is work to fall behind on.
+    # Hands last one day, so this repeats every morning.
+    if hour <= 1 and day <= SEASON_DAYS - 2:
+        want = _hire_target(full_plot, n_animal_tiles)
+        for _ in range(max(0, want - me.get("hires_today", 0))):
+            orders.append(["HIRE"])
+
+    bought = len(me.get("unlocked_quadrants", ["NW"])) - 1
+    if bought < min(MAX_LAND, len(LAND_PRICES)) and day <= SEASON_DAYS - 8:
+        if money >= LAND_PRICES[bought] + LAND_CASH_BUFFER:
+            orders.append(["BUY_LAND"])
+
+    # Sell everything except the feed reserve. Wheat and egg are `log` sinks --
+    # they hold ~$20 and ~$40 at any volume we can reach -- so there is nothing
+    # to gain by holding, and the shed's 100-item cap silently discards the
+    # overflow if we do.
+    # Feed is bought, not farmed. A goose eats one wheat a day and returns
+    # roughly $140, so paying ~$25 on the market for feed is never the
+    # question -- and gating the flock on our own harvest capped it at eight
+    # birds, because the reserve we held back was exactly the surplus the
+    # purchase test was looking for.
+    reserve = n_geese * FEED_RESERVE_PER_GOOSE if day < SEASON_DAYS - 1 else 0
+    for item, count in shed.items():
+        if count <= 0 or item == "GOOSE":
+            continue
+        sellable = count - reserve if item == "WHEAT" else count
+        if sellable > 0:
+            orders.append(["SELL", item, sellable])
+
+    # Geese, as many as cash allows. Payback is about three days, so this
+    # outranks holding cash for anything else.
+    if GOOSE_START_DAY <= day <= LAST_GOOSE_DAY:
+        in_shed = shed.get("GOOSE", 0)
+        # Cap purchases by tiles that can actually receive a bird, not by the
+        # target. A goose cannot be sold, so one that never gets placed is $300
+        # deleted -- three were stranded in the shed at the end of every game.
+        room = n_placeable - in_shed
+        affordable = int(max(0, money - GOOSE_CASH_BUFFER) // GOOSE_COST)
+        want = min(room, affordable, GOOSE_BUY_RATE)
+        if want > 0:
+            orders.append(["BUY_ANIMAL", "GOOSE", want])
+
+    short_feed = reserve - shed.get("WHEAT", 0)
+    if FEED_BUY and short_feed > 0 and day < SEASON_DAYS - 1:
+        room_in_shed = SHED_CAPACITY - sum(v for v in shed.values() if v > 0)
+        affordable = int(max(0, money - GOOSE_CASH_BUFFER) // 60)
+        want = min(short_feed, room_in_shed, affordable)
+        if want > 0:
+            orders.append(["BUY_PRODUCT", "WHEAT", want])
+
+    # Melon first: it is worth twenty times a wheat tile and the seed is the
+    # only thing standing between a bare tile and $1,300.
+    for crop in ("MELON", "WHEAT"):
+        if day > _last_plant_day(crop):
+            continue
+        bare = sum(1 for xy in crop_plot
+                   if me["tiles"][xy[1]][xy[0]] is None and crop_of(xy) == crop)
+        short = bare - seeds.get(crop, 0)
+        affordable = int(max(0, money - LAND_CASH_BUFFER) // CROP_SPEC[crop]["seed"])
+        want = min(short, affordable)
+        if want > 0:
+            orders.append(["BUY_SEED", crop, want])
+
+    return orders[:MAX_MARKET_ORDERS]
 
 
 def agent(obs):
@@ -120,39 +583,71 @@ def agent(obs):
     private = obs["private"]
     tiles = me["tiles"]
     day = obs["day"]
-    money = me["money"]
-    seeds = private.get("seeds", {}) or {}
-    shed_stock = private.get("shed", {}) or {}
-    inventories = private.get("inventories", []) or [{}]
+    hour = obs["hour"]
+
     hands = me.get("hands", []) or []
+    units = [tuple(me["farmer"])] + [tuple(p) for p in hands]
+    n_units = len(units)
 
-    shed = _shed_tile(tiles)
-    n_units = 1 + len(hands)
+    # The tiles nearest the shed become the animal zone: feed comes out of the
+    # shed every day, so a long walk there is paid over and over.
+    full_plot = _workable_tiles(tiles)
+    animal_zone = full_plot[:GOOSE_TARGET]
+    n_geese = sum(1 for (x, y) in animal_zone
+                  if isinstance(tiles[y][x], dict) and "animal" in tiles[y][x])
+    # Tiles a bird could stand on soon: an empty coop, or bare ground a coop
+    # can still be built on.
+    n_placeable = sum(1 for (x, y) in animal_zone
+                      if tiles[y][x] is None
+                      or (isinstance(tiles[y][x], dict)
+                          and tiles[y][x].get("kind") == "COOP"
+                          and "animal" not in tiles[y][x]))
 
-    # Only claim as much ground as the current workforce can water.
-    plot = PLOT[: TILES_PER_UNIT * n_units]
+    # One rancher per `GEESE_PER_RANCHER` coops, but never the whole crew.
+    active = sum(1 for (x, y) in animal_zone if isinstance(tiles[y][x], dict))
+    n_ranchers = min(max(1, n_units - 1),
+                     (active + GEESE_PER_RANCHER - 1) // GEESE_PER_RANCHER)
+    if day <= LAST_GOOSE_DAY and active < len(animal_zone):
+        n_ranchers = max(n_ranchers, 1)  # somebody has to build the coops
 
-    market = []
-    have = seeds.get("WHEAT", 0)
-    if have < SEED_BUFFER and money > MIN_CASH_FOR_SEED:
-        market.append(["BUY_SEED", "WHEAT", SEED_BUFFER - have])
-    for item, count in shed_stock.items():
-        if count > 0:
-            market.append(["SELL", item, count])
+    # Melon sits just outside the animal zone: it needs no shed trips, only
+    # daily water, so distance from the shed costs it little.
+    melon_zone = set(full_plot[len(animal_zone):len(animal_zone) + MELON_TILES])
 
-    # Deal out the plot so units do not converge on the same tile.
-    def slice_for(i):
-        return plot[i::n_units]
+    def crop_of(xy):
+        return "MELON" if tuple(xy) in melon_zone else "WHEAT"
 
-    fx, fy = me["farmer"]
-    farmer_inv = inventories[0] if inventories else {}
-    carried = sum(farmer_inv.values()) if isinstance(farmer_inv, dict) else 0
-    farmer_op = _unit_plan(tiles, fx, fy, carried, seeds, day, slice_for(0), shed)
+    n_crop_units = max(0, n_units - n_ranchers)
+    crop_plot = full_plot[len(animal_zone):][: TILES_PER_UNIT * max(1, n_crop_units)]
+    # Never leave melon ground unworked: it outearns wheat many times over.
+    for xy in melon_zone:
+        if xy not in crop_plot:
+            crop_plot.append(xy)
 
-    hand_ops = []
-    for i, (hx, hy) in enumerate(hands):
-        inv = inventories[i + 1] if len(inventories) > i + 1 else {}
-        c = sum(inv.values()) if isinstance(inv, dict) else 0
-        hand_ops.append(_unit_plan(tiles, hx, hy, c, seeds, day, slice_for(i + 1), shed))
+    rancher_blocks = _territories(animal_zone, max(1, n_ranchers))
+    crop_blocks = _territories(crop_plot, max(1, n_crop_units))
 
-    return {"farmer": farmer_op, "hands": hand_ops, "market": market[:10]}
+    shed = private.get("shed", {}) or {}
+    geese_in_shed = shed.get("GOOSE", 0)
+    wheat_in_shed = shed.get("WHEAT", 0)
+    seeds_left = dict(private.get("seeds", {}) or {})
+    inventories = private.get("inventories", []) or [{}]
+
+    ops = []
+    for i, pos in enumerate(units):
+        inv = inventories[i] if i < len(inventories) and isinstance(inventories[i], dict) else {}
+        carried = sum(inv.values())
+        if i < n_ranchers:
+            ops.append(_rancher_op(tiles, pos, rancher_blocks[i], day, hour, inv,
+                                   carried, geese_in_shed, wheat_in_shed))
+        else:
+            block = crop_blocks[i - n_ranchers] if n_crop_units else []
+            op, used = _farmhand_op(tiles, pos, block, crop_plot, day, hour,
+                                    carried, seeds_left, crop_of)
+            if used:
+                seeds_left[used] = seeds_left.get(used, 0) - 1
+            ops.append(op)
+
+    market = _market_orders(me, private, obs, full_plot, crop_plot, n_geese,
+                            len(animal_zone), crop_of, n_placeable)
+    return {"farmer": ops[0], "hands": ops[1:], "market": market}
