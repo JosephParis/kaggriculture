@@ -71,31 +71,43 @@ the ordering below assumed.
 | [13](13-sweep-harness.md) | Parameter sweep harness over batched games | M | **done** |
 | 05+06 | Hire-and-expand: hands and land scale together | M | **done** |
 | [07](07-livestock.md) | Livestock: the goose/egg/fertilizer engine | L | **done** |
-| 04 | Crop mix: wheat for feed, melon for the premium slice | M | open |
+| [04](04-melon.md) | Crop mix: melon for the premium slice | M | **done** |
 
-**Current baseline: 100% vs `starter`, median $6,024 over 20 games (theirs
-$3,560).** Beat that number or it is a regression. `py eval.py --games 20`.
+**Current baseline: 100% vs `starter`, median $51,018 over 12 games (theirs
+$3,519).** Beat that number or it is a regression. `py -3.12 eval.py --games 12`.
 
-**Measured ceiling on the labour lever:** the same baseline with `HIRE` bolted on
-and `PLOT` widened to the whole NW quadrant scores a median $10,878 at 4 hands
-(4 games). The strategy doc estimates $30k–50k is reachable with livestock. The
-gap between $6k and $30k is engine, not tuning.
+Where it came from:
 
-Labour was confirmed as the binding constraint early: the first baseline planted
-15 tiles, could not water them, and the farm was weeds by day 6 — final profit
-$46. Sizing the plot to the workforce took it to $3,024 profit with no other
-change. The correction to that lesson is that the answer was never "plant less",
-it was "hire more and buy land".
+| | median vs `starter` |
+|---|---|
+| Original single-farmer wheat loop | $6,024 |
+| Hire, expand, hold territory | $14,724 |
+| Goose/egg/fertilizer engine | $28,442 |
+| Melon, and harvesting before the egg cap | $48,857 |
+| Endgame liquidation | **$51,018** |
+
+Swept defaults, all on paired seeds: 12 coops, 20 melon tiles, 2 quadrants,
+8 tiles per unit, feed grown rather than bought.
+
+**$51,018 is an upper bound, not an expectation.** Two copies of this agent land
+at ~$25k each, because they crash each other's melon, fertilizer and egg prices.
+The leaderboard is not `starter`. Measure against `--opponent main.py` too.
+
+Labour was the binding constraint early: the first baseline planted 15 tiles,
+could not water them, and the farm was weeds by day 6 — final profit $46.
+Sizing the plot to the workforce took it to $3,024. The correction to that
+lesson is that the answer was never "plant less", it was "hire more, buy land,
+and put geese and melon on the good tiles".
 
 ### P1 — making the engine sharp
 
 | # | Issue | Effort | Status |
 |---|---|---|---|
-| 04 | Crop mix: melon for the premium slice, as a race | M | open |
-| 15 | Rancher action budget: eggs sit at the `max_held` cap | M | open |
+| 15 | Rancher action budget: eggs sit at the `max_held` cap | M | **done** |
+| 14 | Endgame: liquidate by day 29, unsold inventory scores zero | S | **done** |
 | [03](03-labour-scheduling.md) | Labour scheduling: assignment across many units | L | open |
 | 10 | Sell timing: dump `log` goods, meter `linear`/`sq` goods | M | open |
-| 14 | Endgame: liquidate by day 29, unsold inventory scores zero | S | open |
+| 09 | Opponent modelling: both farms are visible | L | open |
 
 ### P2 — margins
 
@@ -105,16 +117,11 @@ it was "hire more and buy land".
 | 11 | Submission pipeline and leaderboard tracking | S | open |
 | 12 | Replay analysis tooling | M | open |
 
-### P3 — probably not worth it yet
+### P3 — nothing here at the moment
 
-| # | Issue | Effort | Status |
-|---|---|---|---|
-| 09 | Opponent modelling: both farms are visible | L | open |
-
-Demoted. With an order of magnitude between us and our own baseline, reacting to
-the opponent is premature. The one opponent-aware behaviour that pays now is the
-fertilizer and melon race, and that reduces to "sell premium goods early" — it
-needs no model.
+Issue 09 (opponent modelling) was demoted here while our own baseline was an
+order of magnitude away. It is back in P1: the production wins are spent, and
+self-play says the opponent is now where the score is.
 
 ## Dependencies
 
@@ -128,13 +135,19 @@ needs no model.
 
 ## If you only do three
 
-**15**, **04**, **10** - all three are now about the same thing: the agent
-produces more than it converts.
+**10**, **09**, **03** - the cheap production wins are spent, and what is left
+is the opponent.
 
-- **15** because eggs sit at the `max_held` cap for most of the season, which is
-  production thrown away every night. Ranchers lose their actions to fertilizer
-  and feeding.
-- **04** because melon is the one premium good worth ~$21,700 for the first 100
-  units, and it is a race the opponent can win instead.
-- **10** because self-play says half the score disappears against someone
-  competent, and sell timing is the lever that addresses it.
+- **10 (sell timing)** because self-play still halves the score. Against
+  `starter` we make $51k; against a copy of ourselves, $25k. Every remaining
+  point is in the shared market.
+- **09 (opponent modelling)**, promoted back from P3 for the same reason. Both
+  farms are public. Knowing whether the opponent is growing melon decides
+  whether our second melon cycle is worth planting at all.
+- **03 (labour scheduling)** because ~65% of unit-actions are still movement.
+  Territories and a distance tiebreak got it from 72%; the rest needs actual
+  routing rather than one greedy step at a time.
+
+Also worth knowing: **egg and wheat prices rise all season** (to ~$92 and ~$47
+by day 28) because town shops drain them faster than we supply. Nothing in the
+agent exploits that yet.
