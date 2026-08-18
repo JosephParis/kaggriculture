@@ -6,9 +6,14 @@ losing one. Last updated 18 August 2026.
 Read [STRATEGY.md](STRATEGY.md) first for the economics, then this for the
 record of what those economics actually bought.
 
-**Current agent: `main.py`, median $75k against `starter`, 100% win rate over
-12 games.** Ladder rating is a different question — see "Where we actually
-stand" at the bottom.
+**Current agent: `main.py`** — 8 cows / 4 sheep, 24 melon, strawberry on all
+remaining land, **no wheat** (feed is bought), three quadrants.
+Median $84.5k against `starter`, 12/12. Beats the previous build 25-7 head to
+head and the recorded ladder opponent who beat us 28-0.
+
+Note the bank went *down* from the previous build's $88.5k while the head-to-
+head went decisively up. Bank against `starter` is a filter, not the
+objective — the ladder scores win/loss/tie.
 
 ---
 
@@ -98,6 +103,8 @@ Five rules learned the hard way, each after getting a result backwards:
 | 13 | Cap animal purchases by *placeable* tiles | animals cannot be sold |
 | 14 | Seed spend against a running balance | latent; three crops emptied day 0 |
 | 15 | 8 cows / 4 sheep | beat 6/6 by 15-1 head to head |
+| 16 | Strawberry on every tile the herd and melon do not use | $74.7k → $88.5k |
+| 17 | Melon 16 → 24 tiles | 25-7 h2h, bracketed by 16 and 30 |
 
 **Note on 9:** feed buying was correctly rejected for the goose farm and
 correctly accepted for the cow/sheep farm. The same knob flipped sign when the
@@ -135,15 +142,16 @@ animals changed. Re-test knobs after structural changes.
 
 | Idea | Result |
 |---|---|
-| Melon 8 / 12 / 18 / 20 / 22 / 24 / 26 tiles | all lose to 16; 18 and 20 at 2-26 |
+| Melon 8 / 12 / 16 / 30 / 36 / 44 tiles | all lose to **24**; the old "16 is optimal" was fitted against a wheat farm |
 | Melon planting cutoff day 9 | $8k worse |
 | Melon planting cutoff day 13 | tied (submitted as v5) |
-| Strawberry, 8 and 14 tiles | 7-13, 8-12 |
+| ~~Strawberry~~ | **Wrong — now accepted at 44 tiles.** 8 and 14 do lose; the curve is not monotonic and 16+ wins big |
 | Geese at any count | superseded by cows/sheep |
 
-Strawberry looks great on town drain (25/day, the highest) and is in the top
-public tapes, but four units off one planting is 0.24/tile/day, it holds the
-tile 17 days, and its survival watering competes with the herd.
+The strawberry row above was wrong for a long time and is kept as a warning.
+Four units off one planting is only 0.24/tile/day, which is what the original
+reasoning fixated on — but it is still nearly double a wheat tile, and once
+feed is bought there is nothing better to do with the land.
 
 ### Herd
 

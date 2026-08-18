@@ -187,10 +187,10 @@ BLOCK_ORDER = _P("BLOCK_ORDER", 1)
 # Tiles given over to melon, taken just outside the animal zone. The market
 # pays $21,721 for the first 100 melons and almost nothing past 150, and the
 # town drains only one a day, so this is a race against the opponent rather
-# than a production problem: plant early, sell on harvest. Swept at 20; 26
-# is $14,000 worse, because past ~150 units the price is at the floor and
-# the tiles would have been better as geese.
-MELON_TILES = _P("MELON_TILES", 16)
+# than a production problem: plant early, sell on harvest. Swept at 24, and
+# bracketed: 16 loses to it 3-21, and 30, 36 and 44 all lose to it 0-24.
+# The old value of 16 was fitted when the spare land grew wheat.
+MELON_TILES = _P("MELON_TILES", 24)
 MELON_LAST_PLANT = _P("MELON_LAST_PLANT", 19)
 
 # Tiles given to strawberry, just outside the melon block. Ongoing crop: it
