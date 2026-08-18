@@ -109,7 +109,7 @@ LAND_CASH_BUFFER = _P("LAND_CASH_BUFFER", 300)
 # The herd, on the tiles nearest the shed. Sized against what the town drains
 # per day, since that is what holds the price up.
 N_SHEEP = _P("N_SHEEP", 6)
-N_COWS = _P("N_COWS", 8)
+N_COWS = _P("N_COWS", 6)
 N_GEESE = _P("N_GEESE", 0)
 GOOSE_TARGET = N_SHEEP + N_COWS + N_GEESE  # total animal tiles
 GEESE_PER_RANCHER = _P("GEESE_PER_RANCHER", 5)
@@ -130,7 +130,7 @@ FEED_CARRY = _P("FEED_CARRY", 6)
 # own harvest. Swept at 0: bought wheat costs $25-45 against the ~$20 our own
 # sells for, and it competes for the 100-item shed. Growing feed is cheaper
 # than buying it, even though a goose returns $140/day either way.
-FEED_BUY = _P("FEED_BUY", 0)
+FEED_BUY = _P("FEED_BUY", 1)
 
 # Carry this much before making a shed trip. Harvests arrive in waves, and a
 # wave larger than the 100-item shed cap is silently discarded at end of day.
@@ -158,7 +158,7 @@ BLOCK_ORDER = _P("BLOCK_ORDER", 1)
 # than a production problem: plant early, sell on harvest. Swept at 20; 26
 # is $14,000 worse, because past ~150 units the price is at the floor and
 # the tiles would have been better as geese.
-MELON_TILES = _P("MELON_TILES", 20)
+MELON_TILES = _P("MELON_TILES", 16)
 MELON_LAST_PLANT = _P("MELON_LAST_PLANT", 19)
 
 # Wheat planted later than this cannot reach max_yield_day before the season
