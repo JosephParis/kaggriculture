@@ -7,13 +7,14 @@ Read [STRATEGY.md](STRATEGY.md) first for the economics, then this for the
 record of what those economics actually bought.
 
 **Current agent: `main.py`** — 8 cows / 4 sheep, 24 melon, strawberry on all
-remaining land, **no wheat** (feed is bought), three quadrants.
-Median $84.5k against `starter`, 12/12. Beats the previous build 25-7 head to
-head and the recorded ladder opponent who beat us 28-0.
+remaining land, **no wheat** (feed is bought), three quadrants, and units
+routed to the **nearest** actionable task rather than the most urgent one.
+Median $99.9k against `starter`, 12/12. Beats the previous build 24-0 head to
+head, both seats.
 
-Note the bank went *down* from the previous build's $88.5k while the head-to-
-head went decisively up. Bank against `starter` is a filter, not the
-objective — the ladder scores win/loss/tie.
+Bank against `starter` is a filter, not the objective — the ladder scores
+win/loss/tie. The build before this one went the other way: its bank fell from
+$88.5k to $84.5k while its head-to-head went decisively up.
 
 ---
 
@@ -105,6 +106,7 @@ Five rules learned the hard way, each after getting a result backwards:
 | 15 | 8 cows / 4 sheep | beat 6/6 by 15-1 head to head |
 | 16 | Strawberry on every tile the herd and melon do not use | $74.7k → $88.5k |
 | 17 | Melon 16 → 24 tiles | 25-7 h2h, bracketed by 16 and 30 |
+| 18 | `URGENCY_W=0`: nearest task first, urgency only breaks ties | **24-0 h2h**, $83.0k → $99.9k |
 
 **Note on 9:** feed buying was correctly rejected for the goose farm and
 correctly accepted for the cow/sheep farm. The same knob flipped sign when the
@@ -211,10 +213,16 @@ noisy. But the public notebooks warn that a farm printing 100-170k against
    turn-by-turn routing against ours. Everything above says the remaining gap
    is execution, and this is the only way to see it directly. Nothing else on
    this list is worth doing first.
-2. **Routing.** ~65% of unit-actions are still movement. The agent picks one
-   greedy step per unit per turn with no lookahead and no coordination between
-   units. A real tour per unit per day is the obvious next structure, and it is
-   what would make three quadrants and 12 hands pay.
+2. **Routing — partly banked, 18 August.** Task choice used to be strictly
+   lexicographic on urgency, so a unit walked across its block to the most
+   urgent tile and past everything else. Scoring `tier * URGENCY_W + dist` and
+   setting `URGENCY_W=0` — nearest actionable task, urgency only as a tiebreak
+   — was worth 24-0 head to head and $83.0k → $99.9k on bank.
+   What is left is the larger half: the agent still picks one greedy step per
+   unit per turn, with no lookahead and no coordination between units. A real
+   tour per unit per day is the next structure, and it is what would make three
+   quadrants and 12 hands pay. Re-measure the movement share first; the 65%
+   figure predates this change.
 3. **Sell timing.** Egg and wheat prices *rise* all season (to ~$92 and ~$47 by
    day 28) because town drain outpaces supply. Nothing exploits the drift.
 4. **Opponent modelling.** Both farms are public. Whether the opponent grows
