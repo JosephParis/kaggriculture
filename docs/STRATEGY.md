@@ -183,6 +183,38 @@ from melon. The current baseline is $6k. There is an order of magnitude on the
 table, which means the first job is not fine-tuning — it is building the engine
 at all.
 
+## What actually happened
+
+The plan above was implemented and swept. Median against `starter`, 12 games:
+
+| | median | note |
+|---|---|---|
+| Original single-farmer wheat loop | $6,024 | |
+| Hire, expand, hold territory | $14,724 | labour and land, no livestock |
+| Goose/egg/fertilizer engine | **$28,442** | 100% win rate, p99 0.74ms/turn |
+
+Where the estimates held, and where they did not:
+
+- **Geese were the engine, as predicted.** The per-tile advantage over crops is
+  real and large.
+- **Fertilizer is the best single action**, as predicted.
+- **Growing feed beats buying it** — this was wrong in the plan above. Bought
+  wheat costs $25-45 against the ~$20 ours sells for, and it competes for the
+  100-item shed. Swept at $3,200 in favour of growing.
+- **The third quadrant never pays.** $4,000 off the final score for 25 tiles
+  that cannot earn it back. Buy two, not three.
+- **Flock size falls off a cliff at ~24 geese**, where the animal zone eats the
+  tiles and the ranchers eat the crew. 18 is the peak.
+- **The $30k-50k ceiling was roughly right against a weak opponent** and roughly
+  double what is available against a strong one. Two copies of this agent land
+  at ~$18k each: they crash each other's fertilizer and egg prices. **The
+  shared market is worth about half the score.** That moves sell timing and the
+  premium races from "margins" to the main event.
+
+The recurring lesson is that none of the four bugs which made livestock look
+unprofitable were visible in the score. Each took a trace or an action tally.
+See [issues/07](issues/07-livestock.md).
+
 ## What this implies for the backlog
 
 - **02 (measure the market) — close it.** Answered by reading the source, and

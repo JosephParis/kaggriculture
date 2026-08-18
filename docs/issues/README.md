@@ -68,9 +68,9 @@ the ordering below assumed.
 |---|---|---|---|
 | [01](01-baseline-and-harness.md) | Baseline agent and local eval harness | M | **done** |
 | [02](02-measure-the-market.md) | Measure the price function empirically | M | **closed — answered from source** |
-| 13 | Parameter sweep harness over batched games | M | open |
-| 05+06 | Hire-and-expand: hands and land scale together | M | open |
-| 07 | Livestock: the goose/egg/fertilizer engine | L | open |
+| [13](13-sweep-harness.md) | Parameter sweep harness over batched games | M | **done** |
+| 05+06 | Hire-and-expand: hands and land scale together | M | **done** |
+| [07](07-livestock.md) | Livestock: the goose/egg/fertilizer engine | L | **done** |
 | 04 | Crop mix: wheat for feed, melon for the premium slice | M | open |
 
 **Current baseline: 100% vs `starter`, median $6,024 over 20 games (theirs
@@ -91,6 +91,8 @@ it was "hire more and buy land".
 
 | # | Issue | Effort | Status |
 |---|---|---|---|
+| 04 | Crop mix: melon for the premium slice, as a race | M | open |
+| 15 | Rancher action budget: eggs sit at the `max_held` cap | M | open |
 | [03](03-labour-scheduling.md) | Labour scheduling: assignment across many units | L | open |
 | 10 | Sell timing: dump `log` goods, meter `linear`/`sq` goods | M | open |
 | 14 | Endgame: liquidate by day 29, unsold inventory scores zero | S | open |
@@ -126,7 +128,13 @@ needs no model.
 
 ## If you only do three
 
-**13**, **05+06**, **07**. The sweep harness makes every constant tunable against
-a simulator we fully own; hire-and-expand is worth +76% today and is a day's
-work; and the goose/fertilizer engine is where the remaining order of magnitude
-lives.
+**15**, **04**, **10** - all three are now about the same thing: the agent
+produces more than it converts.
+
+- **15** because eggs sit at the `max_held` cap for most of the season, which is
+  production thrown away every night. Ranchers lose their actions to fertilizer
+  and feeding.
+- **04** because melon is the one premium good worth ~$21,700 for the first 100
+  units, and it is a race the opponent can win instead.
+- **10** because self-play says half the score disappears against someone
+  competent, and sell timing is the lever that addresses it.
