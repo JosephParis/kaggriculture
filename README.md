@@ -28,8 +28,10 @@ Prefer reading it over probing the simulator.
 
 - Use **`py -3.12`**. The default `python` on this machine is a sandboxed
   Microsoft Store 3.9.13 and is too old for most Kaggle simulation environments.
-- The `kaggle` CLI is installed but not on `PATH`:
-  `%LOCALAPPDATA%\Packages\PythonSoftwareFoundation.Python.3.9_qbz5n2kfra8p0\LocalCache\local-packages\Python39\Scripts\kaggle.exe`
+- Use **`py -3.12 -m kaggle`** for the CLI. There is an older `kaggle.exe`
+  under the Store Python 3.9, but it is version 1.7.4.5 and only understands
+  the legacy `kaggle.json` username/key pair -- it fails outright on a modern
+  `KGAT_` API token. Credentials live in `~/.kaggle/access_token`.
 
 ## Rules
 
