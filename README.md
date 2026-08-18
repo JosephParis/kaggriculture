@@ -36,6 +36,12 @@ Prefer reading it over probing the simulator.
 ## Rules
 
 - **Submissions are manual.** They are rate-limited and cannot be withdrawn, so
+- **The account must be identity-verified before it can submit at all.**
+  Without it `CreateSubmission` returns a bare `403 Forbidden`; only the
+  response body says why (`IdentityVerificationRequired`). Auth, joining the
+  competition and the file upload all succeed first, so the failure looks like
+  a broken token and is not. Verify a phone number at kaggle.com/settings.
+  A 403 here consumes nothing -- no submission is recorded.
   nothing automated ever submits. Build and evaluate locally.
 - This repo is public. Kaggle permits public sharing; what it forbids is private
   sharing outside a team. The tradeoff accepted here is that competitors can
