@@ -108,8 +108,8 @@ LAND_CASH_BUFFER = _P("LAND_CASH_BUFFER", 300)
 
 # The herd, on the tiles nearest the shed. Sized against what the town drains
 # per day, since that is what holds the price up.
-N_SHEEP = _P("N_SHEEP", 6)
-N_COWS = _P("N_COWS", 6)
+N_SHEEP = _P("N_SHEEP", 4)
+N_COWS = _P("N_COWS", 8)
 N_GEESE = _P("N_GEESE", 0)
 GOOSE_TARGET = N_SHEEP + N_COWS + N_GEESE  # total animal tiles
 GEESE_PER_RANCHER = _P("GEESE_PER_RANCHER", 5)
@@ -141,6 +141,13 @@ DROP_THRESHOLD = _P("DROP_THRESHOLD", 14)
 # and the end-of-day drop happens after the reward is taken, so anything still
 # in a unit's hands at the buzzer is thrown away.
 FLUSH_HOUR = _P("FLUSH_HOUR", 15)
+
+# Every day, not just the last: from this hour a loaded unit delivers, so the
+# produce can be sold in the turns that remain. The end-of-day drop discards
+# anything past the 100-item shed cap, and the feed reserve already occupies a
+# third of it, so a crew carrying 80 units into the night loses some. 24
+# disables it.
+DAILY_FLUSH_HOUR = _P("DAILY_FLUSH_HOUR", 24)
 
 # Weight on distance when breaking ties within an urgency tier. 0 makes a
 # unit work its block in a fixed order regardless of where it is standing.
@@ -432,7 +439,8 @@ def _rancher_op(tiles, pos, block, day, hour, inv, carried, shed,
     """One op for a unit working the animal zone."""
     has_wheat = inv.get("WHEAT", 0) > 0
 
-    if day >= SEASON_DAYS - 1 and hour >= FLUSH_HOUR and carried > 0:
+    flush = (hour >= FLUSH_HOUR if day >= SEASON_DAYS - 1 else hour >= DAILY_FLUSH_HOUR)
+    if flush and carried > 0:
         return _go(pos, _nearest_shed_tile(*pos), ["DROP"])
 
     animals = [(x, y) for (x, y) in block
@@ -497,7 +505,8 @@ def _farmhand_op(tiles, pos, block, fallback, day, hour, carried, seeds_left,
     # Get produce into the shed while it can still be sold. Anything still in a
     # unit's hands when the season ends is scored as nothing, and any wave
     # bigger than the shed cap is discarded at end of day.
-    last_day_flush = day >= SEASON_DAYS - 1 and hour >= FLUSH_HOUR and carried > 0
+    flush_hour = FLUSH_HOUR if day >= SEASON_DAYS - 1 else DAILY_FLUSH_HOUR
+    last_day_flush = hour >= flush_hour and carried > 0
     if carried >= DROP_THRESHOLD or last_day_flush:
         return _go(pos, _nearest_shed_tile(*pos), ["DROP"]), 0
 
