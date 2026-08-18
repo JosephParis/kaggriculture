@@ -25,3 +25,8 @@ checkpoints/
 
 # Claude agent internals
 .claude/
+
+# Throwaway sweep/h2h variants
+r_*.py
+c_*.py
+var_*.py
