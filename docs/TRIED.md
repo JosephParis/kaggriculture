@@ -73,7 +73,7 @@ Three rules learned the hard way:
 | # | Change | Effect |
 |---|---|---|
 | 1 | Hire hands every morning, sized to the work | $6.0k → ~$10k on its own |
-| 2 | Buy two quadrants (NE+SW) | matches the public meta |
+| 2 | Buy NE+SW — **two purchases, three quadrants** | matches the public meta |
 | 3 | Fixed per-unit territory for the day | stopped units oscillating |
 | 4 | Serpentine block ordering | distance-ordered blocks are diagonal arcs |
 | 5 | Distance tiebreak within an urgency tier | movement 72% → 65% of actions |
@@ -100,16 +100,25 @@ animals changed. Re-test knobs after structural changes.
 
 | Idea | Result |
 |---|---|
-| Third quadrant (`MAX_LAND=3`) | $12.5k vs $9.4k for two; loses again later |
-| **Full public meta shape**: 3 quadrants + 10-12 hands + bigger herd | **0-24** |
-| Hiring floor of 8 / 10 / 12 hands | 3-21, 3-21, 0-24 |
+| A **fourth** quadrant (`MAX_LAND=3`) | $12.5k vs $9.4k; loses again later |
+| Four quadrants + 10-12 hands + bigger herd | 0-24 — **but see the correction below** |
+| Hiring floor of 8 / 10 / 12 hands | 3-21, 3-21, 0-24 (mirror only) |
 | `TILES_PER_UNIT` 6 / 10 | 1-15, 0-20 |
 | Rancher density `GEESE_PER_RANCHER` 4 / 6 | worse, 0-28 at 6 |
 
-The meta result is the informative one. The leaders run three quadrants and 12
-hands at rating ~3000, and copying those numbers makes *our* agent worse.
-They execute hand-tuned 719-turn routes; our greedy one-step router cannot
-exploit 71 tiles. **The gap is routing quality, not configuration.**
+> **Correction, 18 August.** `MAX_LAND` counts *purchases*, and NW is free, so
+> our default `MAX_LAND=2` already gives **three quadrants** — the same land
+> the public meta takes. The "meta shape" experiment above actually tested a
+> **fourth** quadrant, which the notebooks say leaders rarely buy. It was
+> never a test of the meta, and the conclusion drawn from it — that the
+> leaders' advantage is routing rather than configuration — is not supported
+> by it.
+
+> A second arithmetic error ran through all of the above: much of this work
+> assumed 46 workable tiles, i.e. two quadrants. The real figure with three
+> quadrants is ~71. **We own 75 tiles and a traced game uses 14 of them.**
+> The plot cap (`TILES_PER_UNIT` x units) leaves most of the farm idle, which
+> is a far more likely explanation of the gap than routing.
 
 ### Crops
 
