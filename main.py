@@ -56,8 +56,27 @@ CROP_SPEC = {
 }
 WHEAT_SEED_COST = CROP_SPEC["WHEAT"]["seed"]
 WHEAT_MAX_YIELD_DAY = CROP_SPEC["WHEAT"]["harvest_age"]
-GOOSE_COST = 300
-GOOSE_MAX_HELD = 4
+# Per animal: cost, the structure it stands on, and how much product it can
+# hold unharvested. CARE banks +1 a day and pays out on the next scheduled
+# production, so an animal on interval i yields (1 + i) units every i days.
+# Times the base price, that is what the tile is really worth:
+#
+#   SHEEP  1.33 wool/day @ $200 = $267/day, payback 1.9 days
+#   COW    1.50 milk/day @ $160 = $240/day, payback 1.7 days
+#   GOOSE  2.00 eggs/day @  $50 = $100/day, payback 3.0 days
+#
+# Geese are the worst of the three. Units per day is the wrong metric -- an
+# egg is worth a third of a milk. The premium prices hold up because town
+# shops drain milk 19/day and wool 13/day, well above what one farm makes;
+# only melon (1/day) and fertilizer (0/day) actually stay crashed.
+ANIMAL_SPEC = {
+    "GOOSE": {"cost": 300, "structure": "COOP",    "build": "BUILD_COOP",
+              "product": "EGG",  "interval": 1, "max_held": 4},
+    "COW":   {"cost": 400, "structure": "PASTURE", "build": "BUILD_PASTURE",
+              "product": "MILK", "interval": 2, "max_held": 6},
+    "SHEEP": {"cost": 500, "structure": "PASTURE", "build": "BUILD_PASTURE",
+              "product": "WOOL", "interval": 3, "max_held": 6},
+}
 LAND_PRICES = [1000, 2000, 4000]
 SEASON_DAYS = 30
 MAX_MARKET_ORDERS = 10
@@ -87,10 +106,12 @@ MAX_HANDS = _P("MAX_HANDS", 10)
 MAX_LAND = _P("MAX_LAND", 2)
 LAND_CASH_BUFFER = _P("LAND_CASH_BUFFER", 300)
 
-# Coops to aim for, on the tiles nearest the shed. Swept at 12 once melon
-# existed to compete for tiles; without melon the peak was 18, and it
-# collapses past 24 where geese crowd out the wheat that feeds them.
-GOOSE_TARGET = _P("GOOSE_TARGET", 12)
+# The herd, on the tiles nearest the shed. Sized against what the town drains
+# per day, since that is what holds the price up.
+N_SHEEP = _P("N_SHEEP", 6)
+N_COWS = _P("N_COWS", 8)
+N_GEESE = _P("N_GEESE", 0)
+GOOSE_TARGET = N_SHEEP + N_COWS + N_GEESE  # total animal tiles
 GEESE_PER_RANCHER = _P("GEESE_PER_RANCHER", 5)
 # Geese bought before the wheat engine runs simply starve: there is no feed in
 # the shed and no cash left to buy any. Hold back enough to keep planting.
@@ -160,8 +181,6 @@ LAST_PLANT_DAY = _last_plant_day("WHEAT")
 # Whether to CARE for geese. One action banks +1 on the next production, so it
 # is worth ~$40/action -- real, but it competes with harvesting at $160.
 CARE_ENABLED = _P("CARE_ENABLED", 1)
-# Held eggs at which a goose is worth a harvest trip.
-HARVEST_AT = _P("HARVEST_AT", GOOSE_MAX_HELD - 1)
 
 # Tier ordering for tasks, lower being more urgent. These are ordered by
 # dollars per action, which is the only currency that matters here:
@@ -308,42 +327,48 @@ def _crop_task(tile, day, crop="WHEAT"):
     return None
 
 
-def _animal_task(tile, day, has_wheat, has_goose, coop_budget):
-    """What a tile in the animal zone needs, or None."""
+def _animal_task(tile, day, has_wheat, has_animal, build_budget, want):
+    """What a tile in the animal zone needs, or None.
+
+    `want` is the animal this tile is zoned for, and `has_animal` whether the
+    unit is carrying one of that kind.
+    """
+    spec = ANIMAL_SPEC[want]
     if tile is None:
-        # An empty coop is a dead tile, so only build when a bird is waiting
-        # for one. Building twelve on day 1 cost us the whole opening.
-        if day <= LAST_GOOSE_DAY and coop_budget > 0:
-            return (T_SETUP, "BUILD_COOP")
+        # An empty structure is a dead tile, so only build when an animal is
+        # actually waiting for one. Building twelve on day 1 cost us an opening.
+        if day <= LAST_GOOSE_DAY and build_budget > 0:
+            return (T_SETUP, spec["build"])
         return _crop_task(tile, day)
-    if day >= SEASON_DAYS - 1 and "animal" not in tile:
-        return None  # placing a bird now earns nothing
     if not isinstance(tile, dict):
         return None
     if "animal" not in tile:
-        if tile.get("kind") == "COOP":
-            return (T_SETUP, "PLACE") if has_goose else None
+        if day >= SEASON_DAYS - 1:
+            return None  # placing an animal now earns nothing
+        if tile.get("kind") == spec["structure"]:
+            return (T_SETUP, "PLACE") if has_animal else None
         # A crop or a weed squatting on the animal zone; treat it normally.
         return _crop_task(tile, day)
 
     last_day = day >= SEASON_DAYS - 1
     held = tile.get("yield_units", 0)
+    max_held = ANIMAL_SPEC[tile["animal"]]["max_held"]
 
-    # Escaping costs the whole $300 animal, so feeding a hungry goose beats
-    # everything. It still lays while unfed; it does not survive two days.
+    # Escaping costs the whole animal -- $400 for a cow, $500 for a sheep -- so
+    # feeding a hungry one beats everything. It still produces while unfed; it
+    # does not survive two days.
     if tile.get("consecutive_unfed", 0) >= 1 and not tile.get("fed_today") and has_wheat:
         return (T_RESCUE, "FEED")
-    # max_held caps unharvested product, so anything at the cap loses a full
-    # night's production. Four eggs for one action also makes this the most
-    # valuable thing a rancher can do.
-    if held >= GOOSE_MAX_HELD or (last_day and held > 0):
+    # At max_held, tonight's production is thrown away. Harvest also returns the
+    # whole stack for one action, which makes it the best action available.
+    if held >= max_held or (last_day and held > 0):
         return (T_HARVEST_FULL, "HARVEST")
-    # One action for ~$80, available every day whether or not it was fed.
+    # One action for ~$80, available daily whether or not the animal was fed.
     if tile.get("fertilizer_available"):
         return (T_FERT, "COLLECT_FERTILIZER")
     if not tile.get("fed_today") and has_wheat and not last_day:
         return (T_FEED, "FEED")
-    if held >= HARVEST_AT:
+    if held >= max_held - 1:
         return (T_HARVEST, "HARVEST")
     # CARE banks +1 for the next production, but only pays out on a fed day.
     if (CARE_ENABLED and tile.get("fed_today")
@@ -352,6 +377,7 @@ def _animal_task(tile, day, has_wheat, has_goose, coop_budget):
     if held > 0:
         return (T_HARVEST, "HARVEST")
     return None
+
 
 
 def _best_task(tiles, block, classify, pos):
@@ -401,42 +427,52 @@ def _go(pos, target, op_here):
     return [_step_toward(pos[0], pos[1], target[0], target[1])]
 
 
-def _rancher_op(tiles, pos, block, day, hour, inv, carried, geese_in_shed,
-                wheat_in_shed):
+def _rancher_op(tiles, pos, block, day, hour, inv, carried, shed,
+                wheat_in_shed, animal_of):
     """One op for a unit working the animal zone."""
     has_wheat = inv.get("WHEAT", 0) > 0
-    has_goose = inv.get("GOOSE", 0) > 0
 
     if day >= SEASON_DAYS - 1 and hour >= FLUSH_HOUR and carried > 0:
         return _go(pos, _nearest_shed_tile(*pos), ["DROP"])
 
     animals = [(x, y) for (x, y) in block
                if isinstance(tiles[y][x], dict) and "animal" in tiles[y][x]]
-    empty_coops = [(x, y) for (x, y) in block
-                   if isinstance(tiles[y][x], dict)
-                   and tiles[y][x].get("kind") == "COOP"
-                   and "animal" not in tiles[y][x]]
+    empty_structs = [(x, y) for (x, y) in block
+                     if isinstance(tiles[y][x], dict)
+                     and tiles[y][x].get("kind") in ("COOP", "PASTURE")
+                     and "animal" not in tiles[y][x]]
     unfed = [(x, y) for (x, y) in animals if not tiles[y][x].get("fed_today")]
     starving = [(x, y) for (x, y) in unfed
                 if tiles[y][x].get("consecutive_unfed", 0) >= 1]
 
-    # A bird that misses a second day is gone along with its $300, so fetching
-    # feed for it outranks anything else this unit could be doing -- including
-    # building the coops that were previously starving the flock.
+    # An animal that misses a second day is gone along with its price, so
+    # fetching feed for it outranks anything else -- including building the
+    # structures that were previously starving the herd.
     if starving and not has_wheat and wheat_in_shed > 0 and day < SEASON_DAYS - 1:
         return _go(pos, _nearest_shed_tile(*pos),
                    ["PICKUP", "WHEAT", min(FEED_CARRY, wheat_in_shed)])
 
-    coop_budget = geese_in_shed + inv.get("GOOSE", 0) - len(empty_coops)
-    best = _best_task(tiles, block,
-                      lambda t: _animal_task(t, day, has_wheat, has_goose, coop_budget),
-                      pos)
+    def classify_at(xy):
+        want = animal_of(xy)
+        spec = ANIMAL_SPEC[want]
+        # Animals of this kind on hand, less the structures already waiting for
+        # one, so we never build ahead of stock.
+        waiting = shed.get(want, 0) + inv.get(want, 0)
+        pending = sum(1 for c in empty_structs
+                      if tiles[c[1]][c[0]].get("kind") == spec["structure"]
+                      and animal_of(c) == want)
+        return _animal_task(tiles[xy[1]][xy[0]], day, has_wheat,
+                            inv.get(want, 0) > 0, waiting - pending, want)
+
+    best = _best_task_at(block, classify_at, pos)
 
     # Fetch what the block needs but this unit is not carrying. A shed trip is
-    # only worth making when there is something waiting at the other end.
+    # only worth making when something is waiting at the other end.
     if best is None or best[0] > T_SETUP:
-        if not has_goose and geese_in_shed > 0 and empty_coops:
-            return _go(pos, _nearest_shed_tile(*pos), ["PICKUP", "GOOSE", 1])
+        for c in empty_structs:
+            want = animal_of(c)
+            if inv.get(want, 0) == 0 and shed.get(want, 0) > 0:
+                return _go(pos, _nearest_shed_tile(*pos), ["PICKUP", want, 1])
         if unfed and not has_wheat and wheat_in_shed > 0 and day < SEASON_DAYS - 1:
             return _go(pos, _nearest_shed_tile(*pos),
                        ["PICKUP", "WHEAT", min(FEED_CARRY, wheat_in_shed)])
@@ -448,10 +484,11 @@ def _rancher_op(tiles, pos, block, day, hour, inv, carried, geese_in_shed,
 
     _tier, target, op = best
     if op == "PLACE":
-        return _go(pos, target, ["PLACE", "GOOSE"])
+        return _go(pos, target, ["PLACE", animal_of(target)])
     if op == "PLANT":
         return _go(pos, target, ["PLANT", "WHEAT"])
     return _go(pos, target, [op])
+
 
 
 def _farmhand_op(tiles, pos, block, fallback, day, hour, carried, seeds_left,
@@ -497,7 +534,7 @@ def _hire_target(full_plot, n_animal_tiles):
 
 
 def _market_orders(me, private, obs, full_plot, crop_plot, n_geese, n_animal_tiles,
-                   crop_of, n_placeable):
+                   crop_of, placeable_by_kind):
     """Hire, expand, sell the surplus, restock -- in that order.
 
     Order matters: the queue is capped at `maxMarketOrdersPerTurn` and is
@@ -540,18 +577,20 @@ def _market_orders(me, private, obs, full_plot, crop_plot, n_geese, n_animal_til
         if sellable > 0:
             orders.append(["SELL", item, sellable])
 
-    # Geese, as many as cash allows. Payback is about three days, so this
-    # outranks holding cash for anything else.
+    # The herd, as fast as cash allows. Sheep first, then cows: sheep return
+    # the most per tile per day, and an animal bought early compounds for the
+    # rest of the season. Payback is under two days for both.
     if GOOSE_START_DAY <= day <= LAST_GOOSE_DAY:
-        in_shed = shed.get("GOOSE", 0)
-        # Cap purchases by tiles that can actually receive a bird, not by the
-        # target. A goose cannot be sold, so one that never gets placed is $300
-        # deleted -- three were stranded in the shed at the end of every game.
-        room = n_placeable - in_shed
-        affordable = int(max(0, money - GOOSE_CASH_BUFFER) // GOOSE_COST)
-        want = min(room, affordable, GOOSE_BUY_RATE)
-        if want > 0:
-            orders.append(["BUY_ANIMAL", "GOOSE", want])
+        for kind in ("SHEEP", "COW", "GOOSE"):
+            quota = placeable_by_kind.get(kind, 0) - shed.get(kind, 0)
+            if quota <= 0:
+                continue
+            cost = ANIMAL_SPEC[kind]["cost"]
+            affordable = int(max(0, money - GOOSE_CASH_BUFFER) // cost)
+            want = min(quota, affordable, GOOSE_BUY_RATE)
+            if want > 0:
+                orders.append(["BUY_ANIMAL", kind, want])
+                money -= want * cost
 
     short_feed = reserve - shed.get("WHEAT", 0)
     if FEED_BUY and short_feed > 0 and day < SEASON_DAYS - 1:
@@ -593,15 +632,29 @@ def agent(obs):
     # shed every day, so a long walk there is paid over and over.
     full_plot = _workable_tiles(tiles)
     animal_zone = full_plot[:GOOSE_TARGET]
+
+    # Zone the herd: sheep nearest the shed, then cows, then any geese.
+    # Feed comes out of the shed every day, so the walk is paid over and over
+    # and the animals worth the most per tile get the shortest one.
+    plan = ["SHEEP"] * N_SHEEP + ["COW"] * N_COWS + ["GOOSE"] * N_GEESE
+    zoned = {tuple(xy): plan[i] for i, xy in enumerate(animal_zone) if i < len(plan)}
+
+    def animal_of(xy):
+        return zoned.get(tuple(xy), "COW")
+
     n_geese = sum(1 for (x, y) in animal_zone
                   if isinstance(tiles[y][x], dict) and "animal" in tiles[y][x])
-    # Tiles a bird could stand on soon: an empty coop, or bare ground a coop
-    # can still be built on.
-    n_placeable = sum(1 for (x, y) in animal_zone
-                      if tiles[y][x] is None
-                      or (isinstance(tiles[y][x], dict)
-                          and tiles[y][x].get("kind") == "COOP"
-                          and "animal" not in tiles[y][x]))
+
+    # Tiles an animal could stand on soon: bare ground, or an empty structure
+    # of the right kind. Counted per kind so we never buy what cannot be placed;
+    # an animal cannot be sold, so one that never lands is its price deleted.
+    placeable_by_kind = {}
+    for xy in animal_zone:
+        t = tiles[xy[1]][xy[0]]
+        kind = animal_of(xy)
+        if t is None or (isinstance(t, dict) and "animal" not in t
+                         and t.get("kind") == ANIMAL_SPEC[kind]["structure"]):
+            placeable_by_kind[kind] = placeable_by_kind.get(kind, 0) + 1
 
     # One rancher per `GEESE_PER_RANCHER` coops, but never the whole crew.
     active = sum(1 for (x, y) in animal_zone if isinstance(tiles[y][x], dict))
@@ -628,7 +681,6 @@ def agent(obs):
     crop_blocks = _territories(crop_plot, max(1, n_crop_units))
 
     shed = private.get("shed", {}) or {}
-    geese_in_shed = shed.get("GOOSE", 0)
     wheat_in_shed = shed.get("WHEAT", 0)
     seeds_left = dict(private.get("seeds", {}) or {})
     inventories = private.get("inventories", []) or [{}]
@@ -639,7 +691,7 @@ def agent(obs):
         carried = sum(inv.values())
         if i < n_ranchers:
             ops.append(_rancher_op(tiles, pos, rancher_blocks[i], day, hour, inv,
-                                   carried, geese_in_shed, wheat_in_shed))
+                                   carried, shed, wheat_in_shed, animal_of))
         else:
             block = crop_blocks[i - n_ranchers] if n_crop_units else []
             op, used = _farmhand_op(tiles, pos, block, crop_plot, day, hour,
@@ -649,5 +701,5 @@ def agent(obs):
             ops.append(op)
 
     market = _market_orders(me, private, obs, full_plot, crop_plot, n_geese,
-                            len(animal_zone), crop_of, n_placeable)
+                            len(animal_zone), crop_of, placeable_by_kind)
     return {"farmer": ops[0], "hands": ops[1:], "market": market}
