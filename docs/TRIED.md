@@ -182,16 +182,35 @@ hands idle 32.5% of their actions. Planting wheat on that ground raises the
 bank a lot and raises the floor even more -- worst of 12 seeds went $78.6k to
 $97.1k.
 
-It still loses every single game to the build without it, and the mechanism is
-`URGENCY_W=0`. A unit takes the nearest actionable task and is **blind to what
-the task is worth**. Wheat next to a melon is a nearer task than the melon, so
-it takes the watering -- and a watering inside melon's age 6-10 window is worth
-~$217 against wheat's ~$5. Adding cheap work to a value-blind router does not
-fill idle time, it displaces expensive work.
+It still loses every single game to the build without it. The first guess was
+that `URGENCY_W=0` made task choice value-blind and cheap wheat work was
+stealing melon waterings. **A day-by-day trace says that is not it** -- melon
+and strawberry planting counts barely move (146 -> 143 and 115 -> 113 over
+three games). The real mechanism is visible in the trace and is more
+interesting:
 
-Both knobs are in `main.py` defaulting to 0, so the experiment is one
-environment variable away once task choice can price a task. **Do not
-re-enable them before then.**
+**The bridge de-synchronises the melon block.** Without it, 21 melons go in on
+day 1 and all harvest together on day 11 for a single $8.6k lump, then 24 go in
+on day 13 and harvest together on day 23. With it, wheat holds some of those
+tiles, so melon goes in whenever a wheat cycle happens to free a tile, and the
+count wanders all season (13, 15, 18, 22, 19, 21, 20, 11, 7, 3, 2) instead of
+sitting flat at 24. Day 11 banks $4.7k instead of $8.6k.
+
+Melon is a **race with a market that never recovers** -- the town drains 1/day
+and the curve is quadratic in the glut -- so the first seller takes ~$217 a
+unit and everyone after gets the floor. Spreading our own harvest across the
+season means our later melons sell into a market our earlier melons crashed.
+Against `starter`, which does not contest melon, the extra tilled ground still
+nets more coins and the bank goes *up*. In a mirror, the opponent's
+synchronised block reaches the market first and the game is over.
+
+**The lesson generalises past wheat: melon acreage wants to arrive and leave in
+one block.** Anything that trickles melon plantings is likely to read as a bank
+win and a head-to-head loss.
+
+Both knobs are in `main.py` defaulting to 0. The obvious next cut is to bridge
+only strawberry-zoned tiles and never melon-zoned ones, which fills idle ground
+without touching the race.
 
 ### Herd
 

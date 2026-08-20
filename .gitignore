@@ -31,3 +31,4 @@ r_*.py
 c_*.py
 var_*.py
 DAWN-SUMMARY.md
+*_tmp.py

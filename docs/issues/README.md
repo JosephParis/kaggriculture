@@ -144,8 +144,8 @@ self-play says the opponent is now where the score is.
 
 ## If you only do three
 
-**10**, **09**, **03** - the cheap production wins are spent, and what is left
-is the opponent.
+**03**, **10**, **09** - the cheap production wins are spent, what is left is
+the opponent, and 03 comes first because the other two feed the same router.
 
 - **10 (sell timing)** because self-play still halves the score. Against
   `starter` we make $51k; against a copy of ourselves, $25k. Every remaining
@@ -158,10 +158,10 @@ is the opponent.
   (`action_stats.py`) and the premise turned over: movement is **42.8%**, not
   72%, and the new waste is **idle — 23.8% of all unit-actions are `PASS`**,
   almost entirely crop hands on days 1-9. Trying to fill that idle with wheat
-  on bare ground banked +$6,214 and lost **0-24**, because `URGENCY_W=0` left
-  task choice value-blind: nearest wins, and tier only breaks exact ties, so
-  cheap work next to expensive work steals it. **Price the tasks before doing
-  anything else** — 10 and 09 both add work for the same router to misprice.
+  on bare ground banked +$6,214 and lost **0-24** — not because the router
+  mis-scheduled it, but because holding melon tiles under a wheat cycle
+  de-synchronised the melon block, and melon is a race into a market that never
+  recovers. See TRIED.md; the idle is real and still unspent.
 
 Also worth knowing: **egg and wheat prices rise all season** (to ~$92 and ~$47
 by day 28) because town shops drain them faster than we supply. Nothing in the
