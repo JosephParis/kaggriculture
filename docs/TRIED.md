@@ -1,7 +1,7 @@
 # What has been tried
 
 A log of every experiment run against this agent, kept so nobody re-runs a
-losing one. Last updated 18 August 2026.
+losing one. Last updated 20 August 2026.
 
 Read [STRATEGY.md](STRATEGY.md) first for the economics, then this for the
 record of what those economics actually bought.
@@ -20,19 +20,33 @@ $88.5k to $84.5k while its head-to-head went decisively up.
 
 ## How to test anything here
 
-Three tools, in increasing order of trustworthiness:
+Four tools, the first three in increasing order of trustworthiness:
 
 ```
 py -3.12 eval.py   --games 12                      # bank vs starter: a filter
 py -3.12 sweep.py  KNOB=a,b,c --games 12           # paired-seed parameter grid
 py -3.12 h2h.py    cand.py --base main.py --games 12   # win rate, both seats
+py -3.12 action_stats.py --games 3                     # what the crew does all day
 ```
+
+`action_stats.py` is a tally, not a test: unit-actions by operation. Nothing in
+this agent has ever shown up in the score before it showed up in the tally.
+
+`h2h.py` was given a null control on 20 August -- two behaviourally identical
+agents -- and returned **8W 8L 8D, 4-4 in each seat**. So a lopsided h2h result
+is the agent, not the harness.
 
 **`h2h.py` is the objective.** The ladder rates on win/loss/tie only; coin
 margin buys no rating. Bank against `starter` has been actively misleading
 more than once — two herd configurations within $600 of each other on bank
 went 11-5 head to head, and turning `CARE` off looked free on bank but loses
 0-20 head to head.
+
+The sharpest case is bridge wheat (20 August): **+$6,214 on bank, 0-24 head
+to head.** The two measures did not disagree on magnitude, they disagreed on
+sign, decisively, in both directions at once. `starter` does not compete for
+melon, so against it a change that trades melon yield for wheat volume reads as
+pure addition; in a mirror, the melon given up is melon the opponent takes.
 
 Five rules learned the hard way, each after getting a result backwards:
 
@@ -155,6 +169,30 @@ Four units off one planting is only 0.24/tile/day, which is what the original
 reasoning fixated on — but it is still nearly double a wheat tile, and once
 feed is bought there is nothing better to do with the land.
 
+### Land use
+
+| Idea | Result |
+|---|---|
+| **Bridge wheat onto bare ground** (`BRIDGE_EARLY`, `BRIDGE_LATE`) | **0-24** with both windows, **0-24** early alone -- while banking +$6,214 vs `starter` |
+
+The diagnosis behind it stands and is worth keeping: the farm really does sit
+with 15 tiles bare through days 1-10 (cash-starved, bank at $300 falling to
+$120) and 29 bare through days 20-28 (past both planting cutoffs), while crop
+hands idle 32.5% of their actions. Planting wheat on that ground raises the
+bank a lot and raises the floor even more -- worst of 12 seeds went $78.6k to
+$97.1k.
+
+It still loses every single game to the build without it, and the mechanism is
+`URGENCY_W=0`. A unit takes the nearest actionable task and is **blind to what
+the task is worth**. Wheat next to a melon is a nearer task than the melon, so
+it takes the watering -- and a watering inside melon's age 6-10 window is worth
+~$217 against wheat's ~$5. Adding cheap work to a value-blind router does not
+fill idle time, it displaces expensive work.
+
+Both knobs are in `main.py` defaulting to 0, so the experiment is one
+environment variable away once task choice can price a task. **Do not
+re-enable them before then.**
+
 ### Herd
 
 | Composition | Result |
@@ -221,8 +259,23 @@ noisy. But the public notebooks warn that a farm printing 100-170k against
    What is left is the larger half: the agent still picks one greedy step per
    unit per turn, with no lookahead and no coordination between units. A real
    tour per unit per day is the next structure, and it is what would make three
-   quadrants and 12 hands pay. Re-measure the movement share first; the 65%
-   figure predates this change.
+   quadrants and 12 hands pay.
+
+   **Re-measured 20 August, and the premise moved.** Movement is **42.8%**, not
+   72%. What replaced it is **idle: 23.8% of all unit-actions are `PASS`** --
+   entirely crop hands (32.5%, against 1.1% for ranchers), concentrated on days
+   1-9 at 40-85%. The bridge-wheat result above says that idle cannot be filled
+   by finding more work, because `URGENCY_W=0` left task choice **value-blind**:
+   it minimises distance and uses tier only to break exact ties, so any cheap
+   task added near an expensive one steals from it.
+
+   So the next change is a **price, not a tour**. Score tasks by value per
+   action -- roughly `dollars(task) / (dist + 1)` -- which reduces to today's
+   behaviour when every task is worth the same and to the old lexicographic
+   order when values are far apart. It is a small change to `_best_task_at`,
+   and it is the precondition for filling idle ground, for a second melon
+   cycle, and for the tour. A tour over mispriced tasks optimises the wrong
+   thing.
 3. **Sell timing.** Egg and wheat prices *rise* all season (to ~$92 and ~$47 by
    day 28) because town drain outpaces supply. Nothing exploits the drift.
 4. **Opponent modelling.** Both farms are public. Whether the opponent grows

@@ -114,7 +114,7 @@ and put geese and melon on the good tiles".
 |---|---|---|---|
 | 15 | Rancher action budget: eggs sit at the `max_held` cap | M | **done** |
 | 14 | Endgame: liquidate by day 29, unsold inventory scores zero | S | **done** |
-| [03](03-labour-scheduling.md) | Labour scheduling: assignment across many units | L | **open — half done** |
+| [03](03-labour-scheduling.md) | Labour scheduling: assignment across many units | L | **open — routing is priced wrong** |
 | 10 | Sell timing: dump `log` goods, meter `linear`/`sq` goods | M | open |
 | 09 | Opponent modelling: both farms are visible | L | open |
 
@@ -153,12 +153,15 @@ is the opponent.
 - **09 (opponent modelling)**, promoted back from P3 for the same reason. Both
   farms are public. Knowing whether the opponent is growing melon decides
   whether our second melon cycle is worth planting at all.
-- **03 (labour scheduling)** because movement still dominates unit-actions.
-  Territories and a distance tiebreak got it from 72% to ~65%, and choosing the
-  nearest task over the most urgent one (`URGENCY_W=0`, 18 August) was worth
-  24-0 head to head — but the agent still takes one greedy step per unit per
-  turn. The rest needs a real per-unit tour, and the movement share wants
-  re-measuring now that the tiebreak changed.
+- **03 (labour scheduling)**, and it is now the *first* of the three rather
+  than the last. The movement share was re-measured on 20 August
+  (`action_stats.py`) and the premise turned over: movement is **42.8%**, not
+  72%, and the new waste is **idle — 23.8% of all unit-actions are `PASS`**,
+  almost entirely crop hands on days 1-9. Trying to fill that idle with wheat
+  on bare ground banked +$6,214 and lost **0-24**, because `URGENCY_W=0` left
+  task choice value-blind: nearest wins, and tier only breaks exact ties, so
+  cheap work next to expensive work steals it. **Price the tasks before doing
+  anything else** — 10 and 09 both add work for the same router to misprice.
 
 Also worth knowing: **egg and wheat prices rise all season** (to ~$92 and ~$47
 by day 28) because town shops drain them faster than we supply. Nothing in the
