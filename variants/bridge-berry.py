@@ -249,7 +249,7 @@ STRAWBERRY_TILES = _P("STRAWBERRY_TILES", 44)
 # next to a melon steals the watering that melon needed. Melon's window is
 # worth ~$217 a watering and wheat's is worth ~$5. Filling idle tiles only pays
 # once task choice knows the difference; see docs/issues/03.
-BRIDGE_EARLY = _P("BRIDGE_EARLY", 0)   # days 1-10, tiles we cannot afford seed for
+BRIDGE_EARLY = _P("BRIDGE_EARLY", 1)   # days 1-10, tiles we cannot afford seed for
 BRIDGE_LATE = _P("BRIDGE_LATE", 0)     # days 20+, tiles past their crop's cutoff
 # Whether the bridge may take melon-zoned ground. It must not. Melon is a race
 # into a market the town drains at 1/day, so it never recovers and the first

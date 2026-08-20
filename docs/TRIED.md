@@ -173,7 +173,11 @@ feed is bought there is nothing better to do with the land.
 
 | Idea | Result |
 |---|---|
-| **Bridge wheat onto bare ground** (`BRIDGE_EARLY`, `BRIDGE_LATE`) | **0-24** with both windows, **0-24** early alone -- while banking +$6,214 vs `starter` |
+| **Bridge wheat onto bare ground** (`BRIDGE_EARLY`, `BRIDGE_LATE`) | **0-24**, in every variant tried -- while banking +$1,200 to +$6,214 vs `starter` |
+
+Four variants, all 0-24 head to head in both seats: both windows, early only,
+and both again with melon-zoned ground protected (`BRIDGE_MELON=0`). The bank
+against `starter` went *up* every time.
 
 The diagnosis behind it stands and is worth keeping: the farm really does sit
 with 15 tiles bare through days 1-10 (cash-starved, bank at $300 falling to
@@ -182,35 +186,46 @@ hands idle 32.5% of their actions. Planting wheat on that ground raises the
 bank a lot and raises the floor even more -- worst of 12 seeds went $78.6k to
 $97.1k.
 
-It still loses every single game to the build without it. The first guess was
-that `URGENCY_W=0` made task choice value-blind and cheap wheat work was
-stealing melon waterings. **A day-by-day trace says that is not it** -- melon
-and strawberry planting counts barely move (146 -> 143 and 115 -> 113 over
-three games). The real mechanism is visible in the trace and is more
-interesting:
+Two mechanisms were proposed and only the second survived tracing.
 
-**The bridge de-synchronises the melon block.** Without it, 21 melons go in on
-day 1 and all harvest together on day 11 for a single $8.6k lump, then 24 go in
-on day 13 and harvest together on day 23. With it, wheat holds some of those
-tiles, so melon goes in whenever a wheat cycle happens to free a tile, and the
-count wanders all season (13, 15, 18, 22, 19, 21, 20, 11, 7, 3, 2) instead of
-sitting flat at 24. Day 11 banks $4.7k instead of $8.6k.
+*Not* value-blind routing. The first guess was that `URGENCY_W=0` lets cheap
+wheat work steal melon waterings. Planting counts barely move (melon 146 ->
+143, strawberry 115 -> 113 over three games), so that is not what happens.
 
-Melon is a **race with a market that never recovers** -- the town drains 1/day
-and the curve is quadratic in the glut -- so the first seller takes ~$217 a
-unit and everyone after gets the floor. Spreading our own harvest across the
-season means our later melons sell into a market our earlier melons crashed.
-Against `starter`, which does not contest melon, the extra tilled ground still
-nets more coins and the bank goes *up*. In a mirror, the opponent's
-synchronised block reaches the market first and the game is over.
+**The bare ground is not idle, it is reserved.** Day-by-day traces of one game,
+counting planted tiles outside the animal zone:
 
-**The lesson generalises past wheat: melon acreage wants to arrive and leave in
-one block.** Anything that trickles melon plantings is likely to read as a bank
-win and a head-to-head loss.
+| | melon hits 24 | strawberry hits 36 |
+|---|---|---|
+| incumbent | day 13 | **day 13** |
+| bridge (melon protected) | day 16 | **day 17** |
 
-Both knobs are in `main.py` defaulting to 0. The obvious next cut is to bridge
-only strawberry-zoned tiles and never melon-zoned ones, which fills idle ground
-without touching the race.
+The farm is cash-starved until the first melon harvest lands on day 11, and the
+moment it does it plants out every bare tile at once. Wheat on those tiles is
+still growing when the money arrives, so **both premium blocks reach full
+acreage about four days late**. Four days is two of strawberry's four yields
+(ages 10, 12, 14, 16), and it costs melon its synchronised second cycle -- with
+melon-zoned ground unprotected the count wanders all season, 13/15/18/22/19/21
+instead of sitting flat at 24, and day 11 banks $4.7k instead of $8.6k.
+
+Melon is a **race into a market that never recovers**: the town drains 1/day,
+the curve is quadratic in the glut, and the first seller takes ~$217 a unit. So
+trickled melon sells into a market our own earlier melon crashed.
+
+Why the bank disagrees so violently: `starter` contests neither melon nor
+strawberry, so against it the extra tilled ground is pure added volume and the
+premium delay costs little. In a mirror the two banks are otherwise nearly
+identical -- the null control ties 8-8-8 -- so a systematic premium deficit of
+any size flips every game. **A 24-0 in this repo does not mean "much better",
+it means "consistently better", and small perturbations sweep.**
+
+**The general lesson: premium acreage wants to go in as one block the instant
+cash allows, and empty ground before day 11 is buying that option.** Filling it
+costs more than it earns. The idle measured in issue 03 is real and still
+unspent, but it cannot be spent on the land -- if anything is to use it, it has
+to be something that does not occupy a tile.
+
+All three knobs are in `main.py` defaulting to 0.
 
 ### Herd
 

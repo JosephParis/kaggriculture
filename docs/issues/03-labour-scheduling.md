@@ -67,10 +67,37 @@ Two separate windows of bare ground, for two different reasons:
 Neither window is a scheduling problem. Better assignment cannot fill a tile
 that has nothing to plant on it.
 
+## What was tried, and why it failed
+
+Filling both windows with wheat (`BRIDGE_EARLY`, `BRIDGE_LATE`, `BRIDGE_MELON`
+in `main.py`, all defaulting to 0). Four variants, **all 0-24 head to head**,
+all of them banking *more* against `starter`. Full write-up in TRIED.md.
+
+The correction that matters for this issue: **the bare ground is not idle, it
+is reserved.** The farm plants out every empty tile the moment the day-11 melon
+money lands, and wheat still growing on those tiles delays it -- both premium
+blocks reach full acreage about four days late, which is two of strawberry's
+four yields. Empty ground before day 11 is buying an option, and the option is
+worth more than a wheat cycle.
+
+So the idle is real, it is large, and **it cannot be spent on the land**.
+Anything that uses it has to not occupy a tile.
+
 ## Next
 
-Filling those windows is what `BRIDGE_WHEAT` addresses (see TRIED.md). What
-remains genuinely under this issue is the lookahead half: units still take one
-greedy step per turn with no per-day tour and no coordination. Re-measure
-movement again after the bare ground is filled -- more planted tiles means more
-work per block, which changes the routing problem it is being tuned against.
+Two things, in order:
+
+1. **Do not spend more effort filling the idle** until there is a use for it
+   that needs no tile. The obvious candidates are all elsewhere in the backlog
+   (issue 10, sell timing; issue 08, the town shops).
+2. **The lookahead half of this issue is still open and still untouched.**
+   Units take one greedy step per turn with no per-day tour and no coordination
+   between them. Movement is 42.8% of actions, so the ceiling on tour planning
+   is real but bounded -- and note that it is now a *smaller* prize than the
+   23.8% idle that has just been shown to be unspendable. Size it before
+   building it.
+
+Worth recording for whoever picks this up: `h2h.py` in this repo sweeps.
+The null control (two identical agents) ties 8-8-8, and every real change
+measured here came back 0-24 or 24-0. A 24-0 means "consistently better", not
+"much better", and small systematic deficits flip every game.
