@@ -249,7 +249,7 @@ STRAWBERRY_TILES = _P("STRAWBERRY_TILES", 44)
 # next to a melon steals the watering that melon needed. Melon's window is
 # worth ~$217 a watering and wheat's is worth ~$5. Filling idle tiles only pays
 # once task choice knows the difference; see docs/issues/03.
-BRIDGE_EARLY = _P("BRIDGE_EARLY", 0)   # days 1-10, tiles we cannot afford seed for
+BRIDGE_EARLY = _P("BRIDGE_EARLY", 1)   # days 1-10, tiles we cannot afford seed for
 BRIDGE_LATE = _P("BRIDGE_LATE", 0)     # days 20+, tiles past their crop's cutoff
 # Bridge wheat is bought after every other order, so it spends what is left.
 # LAND_CASH_BUFFER is what strands the early season; wheat at $10 a seed does
@@ -673,13 +673,7 @@ def _market_orders(me, private, obs, full_plot, crop_plot, n_geese, n_animal_til
     # purchase test was looking for.
     reserve = n_geese * FEED_RESERVE_PER_GOOSE if day < SEASON_DAYS - 1 else 0
     for item, count in shed.items():
-        # Animals are not products: the environment only fills a SELL whose
-        # item is in PRODUCTS, and drops the order otherwise -- but it still
-        # costs one of the ten market orders this turn. The guard here named
-        # GOOSE and was never updated when the herd became cows and sheep, so
-        # every turn with an unplaced animal in the shed threw away a slot,
-        # and the seed orders at the end of the queue are what got truncated.
-        if count <= 0 or item in ANIMAL_SPEC:
+        if count <= 0 or item == "GOOSE":
             continue
         sellable = count - reserve if item == "WHEAT" else count
         if sellable > 0:
