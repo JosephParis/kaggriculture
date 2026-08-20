@@ -249,16 +249,8 @@ STRAWBERRY_TILES = _P("STRAWBERRY_TILES", 44)
 # next to a melon steals the watering that melon needed. Melon's window is
 # worth ~$217 a watering and wheat's is worth ~$5. Filling idle tiles only pays
 # once task choice knows the difference; see docs/issues/03.
-BRIDGE_EARLY = _P("BRIDGE_EARLY", 0)   # days 1-10, tiles we cannot afford seed for
+BRIDGE_EARLY = _P("BRIDGE_EARLY", 1)   # days 1-10, tiles we cannot afford seed for
 BRIDGE_LATE = _P("BRIDGE_LATE", 0)     # days 20+, tiles past their crop's cutoff
-# Whether the bridge may take melon-zoned ground. It must not. Melon is a race
-# into a market the town drains at 1/day, so it never recovers and the first
-# seller takes ~$217 a unit. Holding melon tiles under a wheat cycle means
-# melon goes in whenever a tile happens to come free, and the block that used
-# to sit flat at 24 and harvest in one lump wanders all season -- day 11 banked
-# $4.7k instead of $8.6k. Our own later melons then sell into the market our
-# own earlier melons crashed.
-BRIDGE_MELON = _P("BRIDGE_MELON", 0)
 # Bridge wheat is bought after every other order, so it spends what is left.
 # LAND_CASH_BUFFER is what strands the early season; wheat at $10 a seed does
 # not need that much protection, only enough to cover tomorrow's hire bill.
@@ -681,13 +673,7 @@ def _market_orders(me, private, obs, full_plot, crop_plot, n_geese, n_animal_til
     # purchase test was looking for.
     reserve = n_geese * FEED_RESERVE_PER_GOOSE if day < SEASON_DAYS - 1 else 0
     for item, count in shed.items():
-        # Animals are not products: the environment only fills a SELL whose
-        # item is in PRODUCTS, and drops the order otherwise -- but it still
-        # costs one of the ten market orders this turn. The guard here named
-        # GOOSE and was never updated when the herd became cows and sheep, so
-        # every turn with an unplaced animal in the shed threw away a slot,
-        # and the seed orders at the end of the queue are what got truncated.
-        if count <= 0 or item in ANIMAL_SPEC:
+        if count <= 0 or item == "GOOSE":
             continue
         sellable = count - reserve if item == "WHEAT" else count
         if sellable > 0:
@@ -724,9 +710,8 @@ def _market_orders(me, private, obs, full_plot, crop_plot, n_geese, n_animal_til
     for crop in ("MELON", "STRAWBERRY"):
         bare = sum(1 for xy in crop_plot
                    if me["tiles"][xy[1]][xy[0]] is None and crop_of(xy) == crop)
-        bridgeable = BRIDGE_MELON or crop != "MELON"
         if day > _last_plant_day(crop):
-            if BRIDGE_LATE and bridgeable:
+            if BRIDGE_LATE:
                 stranded += bare  # nothing of this crop will ever go in again
             continue
         short = bare - seeds.get(crop, 0)
@@ -736,7 +721,7 @@ def _market_orders(me, private, obs, full_plot, crop_plot, n_geese, n_animal_til
         if want > 0:
             orders.append(["BUY_SEED", crop, want])
             money -= want * cost
-        if BRIDGE_EARLY and bridgeable:
+        if BRIDGE_EARLY:
             stranded += max(0, short - want)  # could not fund it this turn
 
     # Wheat last, on whatever is left: its own zoned tiles plus the bridge.
@@ -850,8 +835,6 @@ def agent(obs):
         """
         crop = crop_of(xy)
         if crop == "WHEAT" or day > wheat_last or seeds_left.get("WHEAT", 0) <= 0:
-            return crop
-        if crop == "MELON" and not BRIDGE_MELON:
             return crop
         if BRIDGE_LATE and day > _last_plant_day(crop):
             return "WHEAT"
