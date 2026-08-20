@@ -224,6 +224,29 @@ MELON_LAST_PLANT = _P("MELON_LAST_PLANT", 19)
 # threshold looked like a dead idea.
 STRAWBERRY_TILES = _P("STRAWBERRY_TILES", 44)
 
+# Never leave ground bare. An action tally on 20 August found crop hands idle
+# 32.5% of their actions, and tracing why showed it is not a scheduling
+# problem: there is nothing on the tiles. Two windows, for two reasons.
+#
+#   Days 1-10   the bank sits at $300 falling to $120 -- everything went on
+#               animals and melon seed on day 0 -- so LAND_CASH_BUFFER blocks
+#               every further seed purchase and 15 tiles stay bare until the
+#               first melon lands on day 11.
+#   Days 20-28  melon and strawberry both stop being plantable on day 19, so
+#               29 tiles sit bare for the last eight days with $40k+ in the
+#               bank and a full crew with nothing to do.
+#
+# Wheat is the filler for both: $10 a seed, a four-day cycle, and a `log`
+# market that holds ~$20 at any volume we can reach (and drifts up to ~$47 by
+# day 28, since the town drains 31/day). It loses to strawberry on a tile
+# either of them could have -- which is why the farm grows none in steady
+# state -- but the comparison here is against bare dirt earning nothing.
+BRIDGE_WHEAT = _P("BRIDGE_WHEAT", 1)
+# Bridge wheat is bought after every other order, so it spends what is left.
+# LAND_CASH_BUFFER is what strands the early season; wheat at $10 a seed does
+# not need that much protection, only enough to cover tomorrow's hire bill.
+BRIDGE_CASH_BUFFER = _P("BRIDGE_CASH_BUFFER", 100)
+
 # Wheat planted later than this cannot reach max_yield_day before the season
 # ends, so the tile is better left empty.
 def _last_plant_day(crop):
@@ -674,18 +697,41 @@ def _market_orders(me, private, obs, full_plot, crop_plot, n_geese, n_animal_til
     # each crop sized its order off the full bank, and once strawberry joined
     # melon the three orders together emptied the account on day 0 -- no cash
     # to hire, one farmer for 23 tiles, the whole farm dead by day 3.
-    for crop in ("MELON", "STRAWBERRY", "WHEAT"):
-        if day > _last_plant_day(crop):
-            continue
+    stranded = 0  # bare tiles whose zoned crop is unaffordable or out of time
+    for crop in ("MELON", "STRAWBERRY"):
         bare = sum(1 for xy in crop_plot
                    if me["tiles"][xy[1]][xy[0]] is None and crop_of(xy) == crop)
+        if day > _last_plant_day(crop):
+            stranded += bare  # nothing of this crop will ever go in again
+            continue
         short = bare - seeds.get(crop, 0)
         cost = CROP_SPEC[crop]["seed"]
         affordable = int(max(0, money - LAND_CASH_BUFFER) // cost)
-        want = min(short, affordable)
+        want = max(0, min(short, affordable))
         if want > 0:
             orders.append(["BUY_SEED", crop, want])
             money -= want * cost
+        stranded += max(0, short - want)  # could not fund it this turn
+
+    # Wheat last, on whatever is left: its own zoned tiles plus the bridge.
+    # It buys against BRIDGE_CASH_BUFFER rather than LAND_CASH_BUFFER, because
+    # the $300 land buffer is exactly what strands the first ten days -- and
+    # land and animals are already queued ahead of this, so they get their cut
+    # first whatever is left here.
+    bare_wheat = sum(1 for xy in crop_plot
+                     if me["tiles"][xy[1]][xy[0]] is None and crop_of(xy) == "WHEAT")
+    if BRIDGE_WHEAT:
+        bare_wheat += stranded
+        buffer = BRIDGE_CASH_BUFFER
+    else:
+        buffer = LAND_CASH_BUFFER
+    if bare_wheat > 0 and day <= _last_plant_day("WHEAT"):
+        short = bare_wheat - seeds.get("WHEAT", 0)
+        affordable = int(max(0, money - buffer) // WHEAT_SEED_COST)
+        want = min(short, affordable)
+        if want > 0:
+            orders.append(["BUY_SEED", "WHEAT", want])
+            money -= want * WHEAT_SEED_COST
 
     return orders[:MAX_MARKET_ORDERS]
 
@@ -765,6 +811,23 @@ def agent(obs):
     shed = private.get("shed", {}) or {}
     wheat_in_shed = shed.get("WHEAT", 0)
     seeds_left = dict(private.get("seeds", {}) or {})
+
+    wheat_last = _last_plant_day("WHEAT")
+
+    def plant_crop_of(xy):
+        """What to actually put in a bare tile *now*.
+
+        `crop_of` is the zoning and does not change; this is the planting
+        decision. A tile whose zoned crop cannot go in -- no seed and no cash
+        for one in the first ten days, or past its last-plant day in the last
+        eight -- carries a wheat cycle instead of sitting bare.
+        """
+        crop = crop_of(xy)
+        if crop != "WHEAT" and BRIDGE_WHEAT and seeds_left.get("WHEAT", 0) > 0:
+            if seeds_left.get(crop, 0) <= 0 or day > _last_plant_day(crop):
+                if day <= wheat_last:
+                    return "WHEAT"
+        return crop
     inventories = private.get("inventories", []) or [{}]
 
     # Is the opponent about to dump melon? Their tiles are public.
@@ -792,7 +855,8 @@ def agent(obs):
         else:
             block = crop_blocks[i - n_ranchers] if n_crop_units else []
             op, used = _farmhand_op(tiles, pos, block, crop_plot, day, hour,
-                                    carried, seeds_left, crop_of, rush and inv.get("MELON", 0) > 0)
+                                    carried, seeds_left, plant_crop_of,
+                                    rush and inv.get("MELON", 0) > 0)
             if used:
                 seeds_left[used] = seeds_left.get(used, 0) - 1
             ops.append(op)
