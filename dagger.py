@@ -39,6 +39,7 @@ def rollout_worker():
     games = int(os.environ["DG_GAMES"])
     seed = int(os.environ["DG_SEED"])
     out = os.environ["DG_OUT"]
+    opponent = os.environ.get("DG_OPP", "starter")
 
     boards, gather, labels, carry, targets = [], [], [], [], []
     banks = []
@@ -47,7 +48,7 @@ def rollout_worker():
         main.DAGGER_LOG[:] = []
         env = make("kaggriculture", configuration={"seed": seed + g},
                    debug=False)
-        env.run([main.agent, "starter"])
+        env.run([main.agent, opponent])
         banks.append(float(env.steps[-1][0].reward or 0))
         for planes, experts in main.DAGGER_LOG:
             bi = len(boards)
@@ -70,7 +71,7 @@ def rollout_worker():
     print(json.dumps({"banks": banks}))
 
 
-def collect(weights, beta, games, seed, workers, drive):
+def collect(weights, beta, games, seed, workers, drive, opponent):
     """Run rollouts in parallel and merge what they captured."""
     os.makedirs(WORK, exist_ok=True)
     procs, outs = [], []
@@ -86,7 +87,7 @@ def collect(weights, beta, games, seed, workers, drive):
                     "KAG_DAGGER_BETA": str(beta),
                     "KAG_WEIGHTS": weights or "weights/none.npz",
                     "DG_GAMES": str(per), "DG_SEED": str(seed + w * 100),
-                    "DG_OUT": out})
+                    "DG_OPP": opponent, "DG_OUT": out})
         procs.append(subprocess.Popen(
             [sys.executable, "dagger.py", "--worker"],
             env=env, stdout=subprocess.PIPE, stderr=subprocess.DEVNULL,
@@ -131,6 +132,11 @@ def main_cli():
     ap.add_argument("--workers", type=int, default=6)
     ap.add_argument("--epochs", type=int, default=4)
     ap.add_argument("--seed", type=int, default=7000)
+    ap.add_argument("--opponent", default="starter",
+                    help="who to roll out against. Aggregating states from "
+                         "games against `starter` taught the policy the "
+                         "states an *uncontested* game visits, which is "
+                         "exactly where it then underperformed.")
     ap.add_argument("--window", type=int, default=9000,
                     help="cap the pool at this many boards, newest kept. An "
                          "unbounded pool makes each round slower than the "
@@ -154,14 +160,15 @@ def main_cli():
         drive = 0 if it == 0 else 2
         t0 = time.time()
         got, banks = collect(weights, beta, args.games, args.seed + it * 1000,
-                             args.workers, drive)
+                             args.workers, drive, args.opponent)
         if got is None:
             print("iteration %d collected nothing" % it)
             break
         med = float(np.median(banks)) if banks else 0.0
-        print("iter %d  beta %.2f  drive %d  %d games  median bank $%s  (%.0fs)"
-              % (it, beta, drive, len(banks), format(int(med), ","),
-                 time.time() - t0))
+        print("iter %d  beta %.2f  drive %d  vs %s  %d games  "
+              "median bank $%s  (%.0fs)"
+              % (it, beta, drive, args.opponent, len(banks),
+                 format(int(med), ","), time.time() - t0))
 
         if pool is None:
             pool = got

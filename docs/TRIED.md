@@ -354,6 +354,42 @@ routing without a tour is strictly worse than no pricing at all.
 The knobs are in `main.py` defaulting to 0, and the variants are kept, so this
 is re-runnable rather than re-derivable.
 
+### Contested rollouts, and a sample-size lesson that voids the table below
+
+The table below concluded that DAgger's rollouts were "the wrong shape"
+because they were collected against `starter`, and that the ghost column
+showed it. **That conclusion was drawn from eight games and does not survive
+thirty-six.**
+
+Re-running DAgger with rollouts against `ghost_804` instead, then scoring the
+best checkpoint of each regime over 36 games on three seed bases:
+
+| | vs `starter` | vs ghost_804 |
+|---|---|---|
+| heuristic | $96,660 | **21/36** |
+| DAgger, rollouts vs `starter` | $96,613 | **21/36** |
+| DAgger, rollouts vs `ghost_804` | $95,688 | 20/36 |
+
+Three things follow.
+
+**The rollout opponent does not matter.** 21/36 against 20/36 is noise. Both
+regimes converge to the same place, which is what DAgger does: it converges to
+its expert, and the expert is the same heuristic either way.
+
+**The learned controller is at parity with the heuristic.** Same wins, banks
+within $1k. That is the phase's actual goal met -- fine-tuning needs a policy
+that can play, and cloning alone gave one that banked $1.
+
+**Eight games is not a measurement.** At n=8 the same checkpoints spread from
+2/8 to 8/8; at n=36 they collapse to 20-21/36. The heuristic's "8/8" that the
+table below treats as a reference was luck -- it is really 58%. Every
+conclusion in that table drawn from an 8-game gap is void, including the one
+about rollout shape. `eval_checkpoints.py` defaults are now too small to trust
+for anything but a smoke test; use `--games 12 --seeds 3000,5000,7000`.
+
+This repo has a standing rule of 12 games a seat and a documented case of a
+6-game panel reversing at 28. It was written for exactly this and I ignored it.
+
 ### DAgger: a working controller, and the seventh bank-versus-contest split
 
 The op-head clone banked $1. Predicting the **target cell** instead -- what
