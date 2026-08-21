@@ -38,6 +38,7 @@ submitted. See docs/STRATEGY.md for the economics behind the numbers.
 """
 import math
 import os
+import random as _rand
 
 BOARD = 10
 SHED_ACCESS = [(4, 4), (5, 4), (4, 5), (5, 5)]
@@ -246,6 +247,21 @@ LEARNED_WEIGHTS = os.environ.get("KAG_WEIGHTS", "weights/bc.npz")
 # tuned rule on a coin-flip.
 LEARNED_MARGIN = _P("LEARNED_MARGIN", 0.0)
 
+# DAgger. Cloning from replays alone gives a policy that is 65% accurate on
+# expert states and banks $1 when it drives, because the states it reaches
+# once it errs are states no demonstration contained. The fix is to train on
+# the states the *policy* visits, labelled by an expert -- and here the expert
+# is free and exact, because the heuristic can label any board instantly.
+#
+# `DAGGER_BETA` is the chance of taking the heuristic's op rather than the
+# policy's on a given turn. Rolling out at beta=1 collects expert states;
+# lowering it walks the data distribution toward the policy's own.
+DAGGER_BETA = _P("DAGGER_BETA", 0.0)
+# When on, every turn appends (board, unit cells, expert ops) to DAGGER_LOG
+# for a harness to drain. Off, it costs one boolean test a turn.
+DAGGER_CAPTURE = _P("DAGGER_CAPTURE", 0)
+DAGGER_LOG = []
+
 _POLICY = None
 _POLICY_TRIED = False
 
@@ -259,9 +275,9 @@ def _policy():
     if LEARNED_UNITS:
         try:
             import nn_features                      # noqa: F401
-            from nn_policy import Policy
-            if Policy.available(LEARNED_WEIGHTS):
-                _POLICY = Policy(LEARNED_WEIGHTS)
+            from nn_policy import TargetPolicy
+            if TargetPolicy.available(LEARNED_WEIGHTS):
+                _POLICY = TargetPolicy(LEARNED_WEIGHTS)
         except Exception:
             _POLICY = None                          # heuristic carries on
     return _POLICY
@@ -1098,17 +1114,35 @@ def _best_task(tiles, block, classify, pos):
     return (best[3], best[1], best[2])
 
 
-def _best_task_at(block, classify_at, pos):
+# Where the router last sent each unit. The learned policy is trained to
+# predict this rather than the raw op: a target is what the heuristic actually
+# chooses, and a 10x10 spatial softmax can express it, where a per-cell op
+# head cannot express "walk five tiles to that melon".
+_LAST_TARGET = []
+
+
+def _best_task_at(block, classify_at, pos, scorer=None):
     """As `_best_task`, but the classifier sees the position so it can look up
-    which crop that tile is zoned for."""
+    which crop that tile is zoned for.
+
+    With a `scorer`, the choice among *actionable* tiles is handed to it --
+    which is how the learned policy plugs in. It can only ever pick a tile
+    that already has work on it, so the failure mode that sank the op-head
+    policy (wandering to cells with nothing to do) is not reachable: the
+    learned part chooses which job, the heuristic still decides what the job
+    is and how to execute it.
+    """
     best = None
     for (tx, ty) in block:
         got = classify_at((tx, ty))
         if got is None:
             continue
         tier, op, value = got
-        dist = TIEBREAK_DIST * (abs(tx - pos[0]) + abs(ty - pos[1]))
-        key = _task_key(tier, value, dist)
+        if scorer is not None:
+            key = (-scorer(tx, ty),)
+        else:
+            dist = TIEBREAK_DIST * (abs(tx - pos[0]) + abs(ty - pos[1]))
+            key = _task_key(tier, value, dist)
         if best is None or key < best[0]:
             best = (key, (tx, ty), op, tier)
     if best is None:
@@ -1117,13 +1151,16 @@ def _best_task_at(block, classify_at, pos):
 
 
 def _go(pos, target, op_here):
+    # Every unit op funnels through here, so this is the one place that sees
+    # both where a unit is and where it was sent.
+    _LAST_TARGET.append(tuple(target))
     if tuple(pos) == tuple(target):
         return op_here
     return [_step_toward(pos[0], pos[1], target[0], target[1])]
 
 
 def _rancher_op(tiles, pos, block, day, hour, inv, carried, shed,
-                wheat_in_shed, animal_of, rush=False):
+                wheat_in_shed, animal_of, rush=False, scorer=None):
     """One op for a unit working the animal zone."""
     has_wheat = inv.get("WHEAT", 0) > 0
 
@@ -1160,7 +1197,7 @@ def _rancher_op(tiles, pos, block, day, hour, inv, carried, shed,
         return _animal_task(tiles[xy[1]][xy[0]], day, has_wheat,
                             inv.get(want, 0) > 0, waiting - pending, want)
 
-    best = _best_task_at(block, classify_at, pos)
+    best = _best_task_at(block, classify_at, pos, scorer)
 
     # Fetch what the block needs but this unit is not carrying. A shed trip is
     # only worth making when something is waiting at the other end.
@@ -1188,7 +1225,7 @@ def _rancher_op(tiles, pos, block, day, hour, inv, carried, shed,
 
 
 def _farmhand_op(tiles, pos, block, fallback, day, hour, carried, seeds_left,
-                 crop_of, rush=False):
+                 crop_of, rush=False, scorer=None):
     """One op for a unit working crops."""
     # Get produce into the shed while it can still be sold. Anything still in a
     # unit's hands when the season ends is scored as nothing, and any wave
@@ -1205,9 +1242,9 @@ def _farmhand_op(tiles, pos, block, fallback, day, hour, carried, seeds_left,
             return None
         return got
 
-    best = _best_task_at(block, classify_at, pos)
+    best = _best_task_at(block, classify_at, pos, scorer)
     if best is None:
-        best = _best_task_at(fallback, classify_at, pos)  # its own block is idle
+        best = _best_task_at(fallback, classify_at, pos, scorer)
     if best is None:
         return ["PASS"], None
 
@@ -1670,26 +1707,40 @@ def agent(obs):
     # One forward pass a turn serves the whole crew: the policy scores every
     # cell, and each unit reads the cell it stands on.
     pol = _policy()
-    cell = None
-    if pol is not None:
+    board = None
+    planes = None
+    if pol is not None or DAGGER_CAPTURE:
         try:
             import nn_features as _nf
-            cell = pol.cell_logits(_nf.encode(obs, player))
+            planes = _nf.encode(obs, player)
+            if pol is not None:
+                board = pol.trunk(planes)
         except Exception:
-            cell = None
+            board, planes = None, None
 
     ops = []
+    _expert = []
+    del _LAST_TARGET[:]
     for i, pos in enumerate(units):
         inv = inventories[i] if i < len(inventories) and isinstance(inventories[i], dict) else {}
         carried = sum(inv.values())
+        # The learned policy scores every cell as a destination for *this*
+        # unit; the router then picks the best-scoring cell that actually has
+        # work on it. Choosing among real jobs is the part worth learning.
+        scorer = None
+        if board is not None:
+            _sc = pol.scores(board, int(pos[0]), int(pos[1]))
+            scorer = lambda tx, ty, _s=_sc: float(_s[ty, tx])
+
         if i < n_ranchers:
             ops.append(_rancher_op(tiles, pos, rancher_blocks[i], day, hour, inv,
-                                   carried, shed, wheat_in_shed, animal_of, rush and inv.get("MELON", 0) > 0))
+                                   carried, shed, wheat_in_shed, animal_of,
+                                   rush and inv.get("MELON", 0) > 0, scorer))
         else:
             block = crop_blocks[i - n_ranchers] if n_crop_units else []
             op, used = _farmhand_op(tiles, pos, block, crop_plot, day, hour,
                                     carried, seeds_left, plant_crop_of,
-                                    rush and inv.get("MELON", 0) > 0)
+                                    rush and inv.get("MELON", 0) > 0, scorer)
             if used:
                 seeds_left[used] = seeds_left.get(used, 0) - 1
             ops.append(op)
@@ -1698,33 +1749,19 @@ def agent(obs):
         # silently dropped by the environment, which costs the unit its turn,
         # so anything that does not pass falls through to the next-best op and
         # then to the heuristic already in `ops[-1]`.
-        if cell is not None and (LEARNED_UNITS > 1 or ops[-1][0] == "PASS"):
-            px, py = pos
-            tile = tiles[py][px]
-            at_shed = (px, py) in set(SHED_ACCESS)
-            zone = crop_of((px, py)) if (px, py) not in animal_zone else "WHEAT"
-            want = animal_of((px, py)) if (px, py) in animal_zone else None
-            ranked = pol.rank(cell, px, py, carried)
-            for name, score in ranked[:6]:
-                # Never spend the override on doing nothing.
-                if name == "PASS":
-                    continue
-                if not _legal_op(name, tile, day, carried, at_shed, seeds_left,
-                                 zone, want, bool(want and inv.get(want, 0))):
-                    continue
-                if name == "PLANT":
-                    ops[-1] = ["PLANT", zone]
-                    seeds_left[zone] = seeds_left.get(zone, 0) - 1
-                elif name == "PLACE":
-                    ops[-1] = ["PLACE", want]
-                elif name == "PICKUP":
-                    if wheat_in_shed <= 0:
-                        continue
-                    ops[-1] = ["PICKUP", "WHEAT",
-                               min(FEED_CARRY, wheat_in_shed)]
-                else:
-                    ops[-1] = [name]
-                break
+        # The heuristic's answer for this exact state, before anything
+        # overrides it. This is the DAgger label, and it is why the expert
+        # never has to be queried separately: it has already run.
+        _heur_op = ops[-1]
+        if DAGGER_CAPTURE and planes is not None:
+            # The cell the router sent this unit to, which is the label. If it
+            # acted in place, the target is where it stands.
+            tgt = _LAST_TARGET[-1] if _LAST_TARGET else tuple(pos)
+            _expert.append((int(pos[1]), int(pos[0]), _heur_op, carried,
+                            int(tgt[1]), int(tgt[0])))
+
+    if DAGGER_CAPTURE and planes is not None and _expert:
+        DAGGER_LOG.append((planes, _expert))
 
     market = _market_orders(me, private, obs, full_plot, crop_plot, n_geese,
                             len(animal_zone), crop_of, placeable_by_kind,

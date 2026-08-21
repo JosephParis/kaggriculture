@@ -55,6 +55,10 @@ _ch(*["animal_" + a for a in ANIMALS])
 _ch("animal_yield", "fed", "cared", "fert_ready", "animal_full")
 _ch("unit_here", "shed_adj", "self_here")
 _ch("their_plant", "their_animal", "their_melon", "their_ripe")
+# Private state. Its absence is why PLANT was proposed zero times in a whole
+# game: planting depends entirely on holding seed, and with no seed channel it
+# looks arbitrary from the board, so the net could not learn it.
+_ch("seed_wheat", "seed_melon", "seed_straw", "shed_wheat", "shed_full")
 _ch("day", "hour", "money", "carrying")
 _ch(*["price_" + p for p in PRICED])
 N_CH = len(CH)
@@ -154,6 +158,15 @@ def encode(obs, player, unit_index=None, carrying=0.0):
             planes[CH["self_here"], y, x] = 1.0
     for (x, y) in SHED:
         planes[CH["shed_adj"], y, x] = 1.0
+
+    priv = obs.get("private") or {}
+    seeds = priv.get("seeds") or {}
+    shed = priv.get("shed") or {}
+    planes[CH["seed_wheat"]] = min(seeds.get("WHEAT", 0), 20) / 20.0
+    planes[CH["seed_melon"]] = min(seeds.get("MELON", 0), 20) / 20.0
+    planes[CH["seed_straw"]] = min(seeds.get("STRAWBERRY", 0), 20) / 20.0
+    planes[CH["shed_wheat"]] = min(shed.get("WHEAT", 0), 60) / 60.0
+    planes[CH["shed_full"]] = min(sum(shed.values()), 100) / 100.0
 
     planes[CH["day"]] = obs["day"] / 30.0
     planes[CH["hour"]] = obs["hour"] / 24.0
