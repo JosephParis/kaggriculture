@@ -208,6 +208,10 @@ HERD_FIRST = _P("HERD_FIRST", 0)
 # standing plants. Required by any opening that defers land.
 PLANNED_ZONES = _P("PLANNED_ZONES", 0)
 
+# Buy wheat seed ahead of the premium crops. Only sensible when there is a
+# wheat block to fund the season with; see the note in `_market_orders`.
+SEED_WHEAT_FIRST = _P("SEED_WHEAT_FIRST", 0)
+
 # Tiles reserved for wheat ahead of melon, nearest the shed. 0 keeps the
 # historical zoning, where wheat only ever gets leftovers.
 # Six tiles of wheat, taken ahead of melon rather than out of the leftovers.
@@ -935,14 +939,20 @@ def _planned_tiles(tiles, max_land):
     task until the quadrant is bought, since a "LOCKED" tile is not a dict and
     every classifier returns None for it.
     """
-    want = {"NW"}
-    for q in LAND_BUY_ORDER[:max(0, max_land)]:
-        want.add(q)
+    order = {"NW": 0}
+    for i, q in enumerate(LAND_BUY_ORDER[:max(0, max_land)]):
+        order[q] = i + 1
     out = []
     for y, row in enumerate(tiles):
         for x, _t in enumerate(row):
-            if (x, y) in SHED_ACCESS or _quad_name(x, y) not in want:
+            if (x, y) in SHED_ACCESS or _quad_name(x, y) not in order:
                 continue
+            # Shed distance, *not* quadrant order. Grouping by quadrant so the
+            # early zones land on ground we already own is the obvious idea and
+            # it loses badly ($46k against $73.6k): it pushes the animal zone
+            # into NW's far corner, and the herd sits nearest the shed on
+            # purpose, because feed comes out of the shed every day and that
+            # walk is paid over and over.
             out.append((_shed_dist(x, y), x, y))
     out.sort()
     return [(x, y) for _, x, y in out]
@@ -1520,6 +1530,27 @@ def _market_orders(me, private, obs, full_plot, crop_plot, n_geese, n_animal_til
         if melon_switch and got == "MELON":
             return "STRAWBERRY"
         return got
+
+    # Wheat first when the farm runs a wheat block, because then wheat is the
+    # cash engine and everything else is downstream of it.
+    #
+    # The queue used to be melon, strawberry, then wheat on the leftovers,
+    # which is right for a build that opens on melon and buys land on day 0.
+    # It is exactly wrong for a herd-first opening: day 0 spends $1,000 on
+    # sheep, $1,200 on cows and $480 on melon seed, leaving $20 -- so the
+    # twenty-tile wheat block that was supposed to fund the season goes in one
+    # tile at a time, the farm sits at ~$300 for twelve days, and the herd it
+    # opened for cannot be fed or grown.
+    if SEED_WHEAT_FIRST and WHEAT_FIRST_TILES > 0:
+        bare_w = sum(1 for xy in crop_plot
+                     if me["tiles"][xy[1]][xy[0]] is None
+                     and zoned(xy) == "WHEAT")
+        short = bare_w - seeds.get("WHEAT", 0)
+        want = max(0, min(short, int(max(0, money - LAND_CASH_BUFFER)
+                                     // WHEAT_SEED_COST)))
+        if want > 0:
+            orders.append(["BUY_SEED", "WHEAT", want])
+            money -= want * WHEAT_SEED_COST
 
     stranded = 0  # bare tiles whose zoned crop is unaffordable or out of time
     for crop in ("MELON", "STRAWBERRY"):

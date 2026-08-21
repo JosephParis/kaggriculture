@@ -354,6 +354,38 @@ routing without a tour is strictly worse than no pricing at all.
 The knobs are in `main.py` defaulting to 0, and the variants are kept, so this
 is re-runnable rather than re-derivable.
 
+### Herd-first: three more hypotheses, all wrong, and where it really stops
+
+Continued from the rebuild below, which reached $73.6k against the incumbent's
+$95.4k. A day-by-day trace showed the opening spends **$2,700 of its $3,000 on
+day 0** and then sits at ~$300 for twelve days with one to three wheat tiles
+planted -- so the twenty-tile wheat block that was meant to fund the season
+never goes in.
+
+Three fixes followed from that trace. All three failed, and they are recorded
+because each is the obvious next idea:
+
+| hypothesis | reasoning | result |
+|---|---|---|
+| `FEED_BUY=1` | a day-0 herd must eat before our own wheat harvests on day 4 | **$49.1k**, worse -- bought feed drains the cash the herd needs |
+| `SEED_WHEAT_FIRST=1` | the seed queue is melon, strawberry, *then* wheat, so the engine is funded last | **$73.0k**, neutral -- seed money was not the constraint |
+| quadrant-first zoning | tiles nearest the shed straddle all four quadrants, so the animal zone reserves locked ground | **$46.3k**, much worse |
+
+The third is the instructive one. Grouping the plan by quadrant so early zones
+land on ground we already own is plainly sensible and loses badly, because the
+animal zone sits nearest the shed **on purpose**: feed comes out of the shed
+every day and that walk is paid over and over. Pushing the herd into NW's far
+corner to keep it on unlocked land costs more than the locked tiles did.
+Ordering stays on shed distance.
+
+**Where this stops.** Three traced hypotheses, three failures, and the gap is
+still $73.6k against $95.4k. The opening cannot be reached by re-ordering the
+existing purchase queue, which is what all three attempts amounted to. It
+needs the sequencing written as its own control flow, and the evidence now
+says the binding constraint is not cash, not seed priority and not zoning, so
+the next person should trace *what the crew actually does* on days 0-5 before
+proposing a fourth fix.
+
 ### Herd-first, rebuilt rather than ported: $73.6k against $95.4k
 
 The 804-rated build's whole advantage is its opening -- animals on day 0, its
