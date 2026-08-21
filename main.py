@@ -1232,7 +1232,8 @@ def _go(pos, target, op_here):
 
 
 def _rancher_op(tiles, pos, block, day, hour, inv, carried, shed,
-                wheat_in_shed, animal_of, rush=False, scorer=None):
+                wheat_in_shed, animal_of, rush=False, scorer=None,
+                seeds_left=None):
     """One op for a unit working the animal zone."""
     has_wheat = inv.get("WHEAT", 0) > 0
 
@@ -1266,8 +1267,16 @@ def _rancher_op(tiles, pos, block, day, hour, inv, carried, shed,
         pending = sum(1 for c in empty_structs
                       if tiles[c[1]][c[0]].get("kind") == spec["structure"]
                       and animal_of(c) == want)
-        return _animal_task(tiles[xy[1]][xy[0]], day, has_wheat,
-                            inv.get(want, 0) > 0, waiting - pending, want)
+        got = _animal_task(tiles[xy[1]][xy[0]], day, has_wheat,
+                           inv.get(want, 0) > 0, waiting - pending, want)
+        # Filling spare animal ground with wheat is only a task if we hold
+        # wheat seed. Dropping it here rather than at execution matters: the
+        # router then picks the next-best job instead of the rancher spending
+        # its turn on an action the environment silently discards.
+        if (got is not None and got[1] == "PLANT" and seeds_left is not None
+                and seeds_left.get("WHEAT", 0) <= 0):
+            return None
+        return got
 
     best = _best_task_at(block, classify_at, pos, scorer)
 
@@ -1291,6 +1300,12 @@ def _rancher_op(tiles, pos, block, day, hour, inv, carried, shed,
     if op == "PLACE":
         return _go(pos, target, ["PLACE", animal_of(target)])
     if op == "PLANT":
+        # Ranchers fill spare animal-zone ground with wheat, but the crop-hand
+        # path checks for seed and this one never did. The environment drops a
+        # PLANT with no seed silently, so it costs the rancher its whole turn
+        # and shows up nowhere: an audit found **189 of them a game**, every
+        # one "no seed of WHEAT", because this build buys its feed rather than
+        # growing it and usually holds no wheat seed at all.
         return _go(pos, target, ["PLANT", "WHEAT"])
     return _go(pos, target, [op])
 
@@ -1875,7 +1890,8 @@ def agent(obs):
         if i < n_ranchers:
             ops.append(_rancher_op(tiles, pos, rancher_blocks[i], day, hour, inv,
                                    carried, shed, wheat_in_shed, animal_of,
-                                   rush and inv.get("MELON", 0) > 0, scorer))
+                                   rush and inv.get("MELON", 0) > 0, scorer,
+                                   seeds_left))
         else:
             block = crop_blocks[i - n_ranchers] if n_crop_units else []
             op, used = _farmhand_op(tiles, pos, block, crop_plot, day, hour,

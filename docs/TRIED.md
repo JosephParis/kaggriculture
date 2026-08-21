@@ -354,6 +354,47 @@ routing without a tour is strictly worse than no pricing at all.
 The knobs are in `main.py` defaulting to 0, and the variants are kept, so this
 is re-runnable rather than re-derivable.
 
+### The waste audit: the farm is not leaking, and that closes a direction
+
+Bug-hunting has been the cheap way to find gains here and strategy work the
+expensive one, so `audit_waste.py` counts everything the agent throws away.
+Per game, against `starter`:
+
+| leak | measured |
+|---|---|
+| market orders past the 10-per-turn cap | **0** |
+| market orders for unsellable items | **0** |
+| shed overflow destroyed at end of day | **0** |
+| produce unsold at the buzzer | **1** |
+| moves that did not move | 26 |
+| plants that died before yielding | **3** |
+| **unit-actions the environment silently discarded** | **258** |
+
+Only the last was real, and it was one bug: **189 `PLANT` actions a game, every
+one "no seed of WHEAT".** Ranchers fill spare animal-zone ground with wheat,
+and the crop-hand path checks for seed while the rancher path never did -- so
+with feed bought rather than grown, and usually no wheat seed held, ranchers
+spent 3.2% of the farm's entire action budget on an action the environment
+drops. Fixed by dropping the task at classification, so the router picks the
+next-best job rather than the rancher burning its turn.
+
+**It is worth no money.** Discarded actions fall 258 -> 108 and idle falls
+24.0% -> 22.9%, and the bank is $94,976 against a $95,344 baseline over the
+same 12 paired seeds. The fix is still right -- issuing actions that get
+silently dropped is a defect -- but it converts to nothing, which is the
+**fifth** independent confirmation that this farm cannot spend spare actions.
+It cannot spend them on land, on walking, on a tour, on a learned policy, or
+now by reclaiming them from a bug.
+
+The 30 weeds a game are spent strawberry: 36 of 39 deaths are at **age 17**,
+which is its natural end of life after yielding at 10, 12, 14 and 16. Three
+are premature. Not a leak.
+
+**So the efficiency direction is closed.** Overflow, unsold stock, dropped
+orders, dead crops and wasted actions have all been counted and there is
+nothing left to reclaim. Whatever is left is strategy, and strategy here has
+to get past an evaluation that has now disagreed with the ladder seven times.
+
 ### Herd-first: five hypotheses, stuck at $73k, and stopping
 
 Zone sizes now scale with unlocked land (`ZONE_SCALE`), and blocks allocate
