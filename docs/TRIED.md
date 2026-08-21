@@ -6,11 +6,14 @@ losing one. Last updated 20 August 2026.
 Read [STRATEGY.md](STRATEGY.md) first for the economics, then this for the
 record of what those economics actually bought.
 
-**Current agent: `main.py`** — 8 cows / 4 sheep, 24 melon, strawberry on all
-remaining land, **no wheat** (feed is bought), three quadrants, and units
-routed to the **nearest** actionable task rather than the most urgent one.
-Median $99.9k against `starter`, 12/12. Beats the previous build 24-0 head to
-head, both seats.
+**Current agent: `main.py`** — 8 cows / 4 sheep, 24 melon, strawberry on 34
+tiles, **a wheat block on the ~10 tiles left over**, three quadrants, and
+units routed to the **nearest** actionable task rather than the most urgent
+one. Median **$101.4k** against `starter`, 12/12, seeds 1000..1011.
+
+The wheat block landed 20 August and is the first change in this file accepted
+on **replay evidence** rather than a sweep: ten real losses say the farms that
+beat us sell 184 wheat a game to our 44. It is worth **21-3 head to head**.
 
 Bank against `starter` is a filter, not the objective — the ladder scores
 win/loss/tie. The build before this one went the other way: its bank fell from
@@ -28,7 +31,14 @@ py -3.12 sweep.py  KNOB=a,b,c --games 12           # paired-seed parameter grid
 py -3.12 h2h.py    cand.py --base main.py --games 12   # win rate, both seats
 py -3.12 action_stats.py --games 3                     # what the crew does all day
 py -3.12 tour_ceiling.py --games 3                     # what better routing could ever save
+py -3.12 scan_episodes.py <submission_id>              # pull real episodes, keep the losses
+py -3.12 analyse_losses.py                             # diff our farm against the one that beat us
 ```
+
+The last two need Kaggle auth (`py -3.12 -m kaggle auth login`) and are the
+only tools here that see a real opponent. **Use them before sweeping
+anything**: five consecutive sweep-driven candidates were rejected on 20
+August, and the replay diff produced an accepted change on the first pass.
 
 `action_stats.py` is a tally, not a test: unit-actions by operation. Nothing in
 this agent has ever shown up in the score before it showed up in the tally.
@@ -153,6 +163,7 @@ Five rules learned the hard way, each after getting a result backwards:
 | 16 | Strawberry on every tile the herd and melon do not use | $74.7k → $88.5k |
 | 17 | Melon 16 → 24 tiles | 25-7 h2h, bracketed by 16 and 30 |
 | 18 | `URGENCY_W=0`: nearest task first, urgency only breaks ties | **24-0 h2h**, $83.0k → $99.9k |
+| 19 | Strawberry 44 → 34, giving wheat a block of its own | **21-3 h2h**, +$3,422 |
 
 **Note on 9:** feed buying was correctly rejected for the goose farm and
 correctly accepted for the cow/sheep farm. The same knob flipped sign when the
@@ -331,6 +342,70 @@ routing without a tour is strictly worse than no pricing at all.
 The knobs are in `main.py` defaulting to 0, and the variants are kept, so this
 is re-runnable rather than re-derivable.
 
+### What the replays actually said (20 August)
+
+Open lead 1 -- "replay analysis of a loss to a strong opponent" -- has been the
+top of this list since 18 August and was finally run. `scan_episodes.py` pulls
+an episode list, downloads the replays and keeps the losses;
+`analyse_losses.py` diffs our farm against the farm that beat us. Replays carry
+**both** farms in full plus both action dicts, so none of this is inferred.
+
+Twenty episodes of submission 55647314: **10W 10L**, which is the mid-ladder
+record the rating implies. Averaged over the ten losses, units sold per game:
+
+| product | us | winner | diff |
+|---|---|---|---|
+| **WHEAT** | 44 | **184** | **+140** |
+| STRAWBERRY | 141 | 177 | +36 |
+| CARROT | 0 | 32 | +32 |
+| WOOL | 113 | 122 | +9 |
+| MELON | 99 | 101 | +2 |
+| MILK | 228 | 171 | −57 |
+| FERTILIZER | 300 | 157 | −143 |
+
+**We win the premium races and lose on staples.** We out-produce the field on
+milk and fertilizer -- the two goods this repo has spent the most effort on --
+and sell a quarter of their wheat. Wheat is the **largest town drain in the
+game at 31/day**, its curve is `log` so it never crashes at any volume we can
+reach, and its price climbs $26 -> $51 across the season. We had priced it at
+its $25 base, concluded it earned ~$11/action, and dropped it entirely once
+feed was bought. At the realised price it is roughly twice that.
+
+Acting on it is accepted change 19 above: strawberry 44 -> 34, and the ten
+freed tiles fall back to wheat. **21-3 head to head.**
+
+**This is not bridge wheat.** That put wheat on melon and strawberry ground and
+desynchronised the premium blocks, and lost 0-24. This gives wheat ground of
+its own and never touches the premium blocks' timing. The distinction is the
+whole result: it was never "wheat is worthless", it was "do not borrow premium
+ground".
+
+Two more things the replays turned up:
+
+- **The submitted agent issues 542-885 `SELL COW` / `SELL SHEEP` orders a
+  game, and every one is silently dropped.** `PRODUCTS` in the environment
+  source does not include animals, so the order costs a slot in the
+  ten-per-turn queue and does nothing. It is *nearly* harmless -- the queue
+  only reaches its cap on ~21 turns a game, and only 2-3 of those had a dead
+  order displacing a real one -- so it is a tidiness bug, not the gap. Worth
+  fixing, not worth crediting. `main.py` in this repo already guards it with
+  `item in ANIMAL_SPEC`; the submitted lineage does not.
+- **The ladder work has diverged from this repo.** There are **twelve**
+  submissions, not the five this file records. The 18 August builds rate
+  581-628, but a lineage submitted on 19-20 August rates **752-804**, peaking
+  at 804.3 (55637915, "wheat 6->20 on the herd-first crew"). Their
+  descriptions name a herd-first opening, a crew sized off the herd, land on
+  day 6, melon on day 3, delivering at 8 rather than 14, and an adaptive
+  cow/sheep choice off live prices -- **none of which is in this repo**, and
+  several of which this file records as losing. Whatever is in `main.py` here
+  is not what is rating 804 on the ladder.
+
+  Note in particular that 55617318 is "deliver at 8 not 14: 45-19 vs previous
+  build" while the Logistics table below records `DROP_THRESHOLD` 5/8 losing
+  to 14, and 55616633 is "melon second cycle cut at day 9 ... 63-1" while the
+  Crops table records a day-9 melon cutoff as $8k worse. Those conflicts are
+  real and unresolved: they were measured on different builds.
+
 ### Crew and land, retested 20 August
 
 | Idea | Result |
@@ -495,11 +570,19 @@ noisy. But the public notebooks warn that a farm printing 100-170k against
 
 ## Open leads, best first
 
-1. **Replay analysis of a loss to a strong opponent.**
-   `py -3.12 -m kaggle competitions replay <episode_id>`, then diff their
-   turn-by-turn routing against ours. Everything above says the remaining gap
-   is execution, and this is the only way to see it directly. Nothing else on
-   this list is worth doing first.
+1. ~~**Replay analysis of a loss to a strong opponent.**~~ **Done, 20 August
+   -- and it was worth more than everything else on this list put together.**
+   See "What the replays actually said" above. It produced the only accepted
+   change of the day (wheat block, 21-3) after five sweep-driven candidates
+   had all been rejected. The tooling is `scan_episodes.py` and
+   `analyse_losses.py`; re-run it after any structural change.
+
+   **The gap was not execution.** Movement is 42.8%, the router is within a
+   quarter of optimal, and none of that mattered: the farms beating us simply
+   sell four times the wheat. Next pass should look at *carrot* on the same
+   grounds -- the field sells 32 a game to our zero, the town drains it
+   19/day, and its curve is `sqrt` -- and at the herd-first opening the
+   19-20 August submissions describe.
 2. **Routing — partly banked, 18 August.** Task choice used to be strictly
    lexicographic on urgency, so a unit walked across its block to the most
    urgent tile and past everything else. Scoring `tier * URGENCY_W + dist` and

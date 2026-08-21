@@ -80,8 +80,9 @@ the ordering below assumed.
 | [07](07-livestock.md) | Livestock: the goose/egg/fertilizer engine | L | **done** |
 | [04](04-melon.md) | Crop mix: melon for the premium slice | M | **done** |
 
-**Current baseline: 100% vs `starter`, median $99,851 over 12 paired games
-(seeds 1000..1011).** Beat that number or it is a regression.
+**Current baseline: 100% vs `starter`, median $101,402 over 12 paired games
+(seeds 1000..1011).** Beat that number or it is a regression. Moved 20 August
+by the wheat block (strawberry 44 -> 34), which is 21-3 head to head.
 `py -3.12 eval.py --games 12 --seed 1000`. Note `eval.py` seeds randomly unless
 `--seed` is given, so two runs without it are not comparable.
 
@@ -124,7 +125,7 @@ and put geese and melon on the good tiles".
 |---|---|---|---|
 | 08 | Town shop demand: track unlocks, sell into scarcity | M | open |
 | 11 | Submission pipeline and leaderboard tracking | S | open |
-| 12 | Replay analysis tooling | M | open |
+| 12 | Replay analysis tooling | M | **done — and it found the wheat block** |
 
 ### P3 — nothing here at the moment
 

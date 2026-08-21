@@ -43,6 +43,16 @@ timing and the market".
 `sell-meter.py` is also a worked example of why the bank is only a filter: its
 bank is within noise of the incumbent's and it still loses two games in three.
 
+## Accepted
+
+| file | change | result |
+|---|---|---|
+| `wheat-block.py` | strawberry 44 → 34, the freed tiles fall back to wheat | **21-3-0**, now the default in `main.py` |
+| `wheat-block-28.py` | the same at 28 tiles | 19-5-0, slightly better bank, worse h2h |
+
+Found by diffing ten real losses, not by sweeping. See TRIED.md, "What the
+replays actually said".
+
 ## Crew and land (20 August)
 
 | file | change from `main.py` | result |

@@ -352,19 +352,6 @@ MELON_LAST_PLANT = _P("MELON_LAST_PLANT", 19)
 # not monotonic: 16 wins, and it keeps improving to the point where
 # strawberry covers everything left. Two samples on the wrong side of a
 # threshold looked like a dead idea.
-# Cut from 44 to 34 on 20 August, on replay evidence rather than a sweep. Ten
-# tiles come off strawberry and fall back to wheat (`crop_of` defaults to it),
-# which is worth 21-3 head to head and +$3,422 vs `starter`.
-#
-# Ten real losses say the farms that beat us sell **184 wheat a game to our
-# 44**, while we out-produce them on milk and fertilizer. Wheat is the largest
-# town drain in the game at 31/day, its curve is `log` so it never crashes,
-# and its price climbs $26 -> $51 across the season. We had priced it at its
-# $25 base and concluded it was redundant once feed was bought.
-#
-# This is not bridge wheat, which lost 0-24. That put wheat on melon and
-# strawberry ground and desynchronised the premium blocks; this gives wheat
-# ground of its own and never touches the premium blocks' timing.
 STRAWBERRY_TILES = _P("STRAWBERRY_TILES", 34)
 
 # Never leave ground bare. An action tally on 20 August found crop hands idle
