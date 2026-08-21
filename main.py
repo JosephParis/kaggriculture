@@ -212,6 +212,10 @@ PLANNED_ZONES = _P("PLANNED_ZONES", 0)
 # wheat block to fund the season with; see the note in `_market_orders`.
 SEED_WHEAT_FIRST = _P("SEED_WHEAT_FIRST", 0)
 
+# Days of feed that must already be in the shed before buying another animal.
+# 0 keeps the old behaviour of buying whatever cash allows.
+FEED_GATE_DAYS = _P("FEED_GATE_DAYS", 0)
+
 # Tiles reserved for wheat ahead of melon, nearest the shed. 0 keeps the
 # historical zoning, where wheat only ever gets leftovers.
 # Six tiles of wheat, taken ahead of melon rather than out of the leftovers.
@@ -1492,6 +1496,19 @@ def _market_orders(me, private, obs, full_plot, crop_plot, n_geese, n_animal_til
                 continue
             cost = ANIMAL_SPEC[kind]["cost"]
             affordable = int(max(0, money - GOOSE_CASH_BUFFER) // cost)
+            # Do not buy an animal we cannot feed. An animal misses two
+            # consecutive days and it is gone for good along with its price,
+            # and a herd-first opening walks straight into that: it places
+            # cows on day 0, its own wheat does not harvest until day 4, and a
+            # trace of days 0-5 shows the herd count oscillating 0,1,0,1 as
+            # each animal starves and the next is bought to replace it. Four
+            # pastures stood empty while the farm planted eight tiles.
+            if FEED_GATE_DAYS > 0:
+                mouths = sum(1 for row in me["tiles"] for t in row
+                             if isinstance(t, dict) and t.get("animal"))
+                have = shed.get("WHEAT", 0)
+                if have < (mouths + 1) * FEED_GATE_DAYS:
+                    affordable = 0
             want = min(quota, affordable, GOOSE_BUY_RATE)
             if want > 0:
                 orders.append(["BUY_ANIMAL", kind, want])

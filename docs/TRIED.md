@@ -354,6 +354,54 @@ routing without a tour is strictly worse than no pricing at all.
 The knobs are in `main.py` defaulting to 0, and the variants are kept, so this
 is re-runnable rather than re-derivable.
 
+### Herd-first, traced properly: the herd is bought and never placed
+
+`trace_opening.py` tallies unit-actions a day for the opening and prints the
+board beside them, which is the layer the money trace could not see. Days 0-5,
+against the incumbent on the same seed:
+
+| | plants by day 1 | idle/day | structures | animals on tiles |
+|---|---|---|---|---|
+| incumbent | **28** | 11-138 | 0 | 0 |
+| herd-first | **8** | 96-184 | 4 | 1 |
+
+And the herd itself, sampled at end of day:
+
+```
+day 0  animals-on-tiles 1   shed{SHEEP:3}
+day 2  animals-on-tiles 1   shed{SHEEP:2}
+day 4  animals-on-tiles 1   shed{SHEEP:1}
+```
+
+**Three sheep are bought on day 0 and sit in the shed for days.** One animal
+reaches the board in the first eight, no cow is ever bought, and
+`consecutive_unfed` never reaches 2 -- so nothing starves and nothing escapes.
+The bottleneck is **placement**, and `build=4` on day 0 says why: only four
+structures can be built, because the animal zone is the fifteen tiles nearest
+the shed, the shed sits at the centre of the board, and eleven of those tiles
+are in quadrants we have not bought.
+
+An earlier note here read the animal count oscillating 0,1,0,1 as animals
+escaping. That was a sampling artifact -- the board was captured at hour 0,
+before the day's placement -- and the escape reading was wrong. Corrected.
+
+This also explains why the quadrant-first ordering failed at $46.3k. It does
+put the herd on unlocked ground near the shed, as intended; what it does
+instead is push *the crops* onto locked land, because NW only holds ~25 tiles
+and the wheat, melon and strawberry blocks then start in NE.
+
+So the real shape of the problem: **with land deferred, the zone sizes have to
+shrink to the land actually held and grow as quadrants arrive.** A fixed
+fifteen-tile animal zone and a fixed twenty-tile wheat block cannot both fit in
+NW, and every fix tried so far has been a re-ordering of blocks whose sizes
+were the thing that was wrong.
+
+Four hypotheses tested and rejected on the way, each recorded so nobody repeats
+them: bought feed ($49.1k), wheat-first seeding ($73.0k, neutral),
+quadrant-first zoning ($46.3k), and gating animal purchases on feed in the shed
+($41.1k -- it never opens, because the shed wheat the gate waits for is eaten
+by the animals already down).
+
 ### Herd-first: three more hypotheses, all wrong, and where it really stops
 
 Continued from the rebuild below, which reached $73.6k against the incumbent's
