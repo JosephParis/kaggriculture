@@ -401,6 +401,44 @@ So the finding is real and the fix is not this one. The 804 builds lose from in
 front, on day 11, to a melon market they reach last -- and whatever gets them
 there faster is not the delivery threshold.
 
+### The strong farms do not adapt either -- they run better fixed plans
+
+Our 804 build plays the same game every time. The obvious question is whether
+that is the weakness. `check_adaptive.py` answers it with the one clean test
+available: an opponent that appears in more than one of our replays, so the
+same agent is seen on two boards, against two opponents, on two price paths.
+Sixty-one replays yielded two such opponents.
+
+**Ryan Hancock is completely deterministic.** Across two games, every crop
+matches to the tile -- strawberry 47/47, wheat 10/10, melon 7/7, cow 6/6,
+sheep 4/4, carrot 1/1, spread **zero** on all of them -- with melon planted day
+1 and sold day 11 both times and 413 against 411 wheat sold. And the banks are
+**$24,421 and $112,872**. The identical script produces a 4.6x swing.
+
+**takaygiiiiiiii does vary**, but not in response to anything:
+
+| | melon tiles d1 / d5 / d10 | their bank |
+|---|---|---|
+| game 95212297 | **13** / 14 / 16 | **$102,594** |
+| game 95652555 | **0** / 0 / 9 | $62,488 |
+
+In both games **our** melon was the same (0 / 2 / 16-17) and the melon price
+was the same ($256 on day 1, $266 on day 5). The inputs a reactive agent would
+read were identical and the behaviour still differed, so the variation is
+internal -- cash cascade or board luck -- not adaptation. And it is expensive:
+the game where melon went in on day 1 banked **64% more**.
+
+**So adaptivity is not what separates the strong farms from us.** They run
+fixed plans, as we do; theirs are better, and the variance in their results
+comes from the draw rather than from reading the game. That is consistent with
+what the adaptive work here already measured: `ADAPTIVE_HERD` was worth about
++14 rating, and `ADAPTIVE_CROP` was worse out of sample.
+
+The practical reading is to stop building machinery that reads the opponent
+and spend the effort on the fixed plan -- and specifically on **getting melon
+in the ground on day 1**, which is worth 64% of a bank to the one opponent we
+can watch do it both ways.
+
 ### What the strong farms actually do: it is strawberry volume, not wheat
 
 **Any public episode downloads by id**, not just our own -- `kaggle
