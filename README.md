@@ -39,8 +39,22 @@ and price function are readable. Prefer reading it over probing.
 
 ## Rules
 
-- **Submissions are manual.** They are rate-limited and cannot be withdrawn,
-  so nothing automated ever submits. Build and evaluate locally.
+- **Submissions run through `submit.py`, which refuses more often than it
+  sends.** The manual-only rule was relaxed on 21 August; the pre-flight is
+  what replaced the human. It checks that the file parses and exposes
+  `agent()`, that it imports nothing outside the standard library (a submitted
+  agent runs without this repo, so a stray `import main` passes locally and
+  fails there), that it plays a full 720-turn game without crashing and banks
+  something plausible, that p99 is well inside `actTimeout`, and that the
+  daily allowance is not already spent.
+
+  ```
+  py -3.12 submit.py --dry-run          # checks only
+  py -3.12 submit.py -m "what changed and the evidence"
+  ```
+
+  The allowance resets on the **UTC** day, not the local one -- counting
+  locally reported "0 left" against a real 4 on the first run.
 - **Submitting works, and the CLI is `py -3.12 -m kaggle`.** First successful
   submission 18 Aug 2026 (id 55590014). The daily allowance is 5.
 

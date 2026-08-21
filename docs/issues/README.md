@@ -45,8 +45,10 @@ Starting bank is $3,000. Land: NW free, then $1k / $2k / $4k.
 
 ## Working rules
 
-- **Never submit from an unattended run.** Submissions are rate-limited and
-  cannot be withdrawn. `eval.py` measures locally; a human submits.
+- **Submit through `submit.py`.** Submissions are rate-limited and cannot be
+  withdrawn, so it runs a pre-flight -- stdlib-only imports, a full
+  non-crashing game, p99 inside `actTimeout`, allowance not spent -- and
+  refuses on any of them.
 - **Never report a single game.** Weeds, shop unlocks and market noise make one
   result meaningless. Always a win rate over a batch, with the spread.
 - Baseline to beat is whatever `main.py` currently scores against `starter`.

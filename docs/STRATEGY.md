@@ -254,7 +254,9 @@ See [issues/07](issues/07-livestock.md).
 
 ## Working rules that still hold
 
-- **Never submit from an unattended run.** Rate-limited, cannot be withdrawn.
+- **Submit through `submit.py`.** Rate-limited and cannot be withdrawn, so
+  the pre-flight there is what stands in for a human: stdlib-only imports, a
+  full non-crashing game, p99 inside `actTimeout`, allowance not spent.
 - **Never report a single game.** Batch median and spread, always.
 - `py -3.12`. The default `python` is a sandboxed Store 3.9.
 - Respect `actTimeout: 1`. Measure per-turn wall clock in the harness, because
