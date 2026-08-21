@@ -44,7 +44,7 @@ AXES = {
 START = {"N_COWS": 8, "N_SHEEP": 4, "MELON_TILES": 24, "STRAWBERRY_TILES": 34}
 
 
-def evaluate(combo, games, seed, workers_env=None):
+def evaluate(combo, games, seed, opponent="starter"):
     env = dict(os.environ)
     env.update({"OMP_NUM_THREADS": "1", "OPENBLAS_NUM_THREADS": "1",
                 "MKL_NUM_THREADS": "1", "NUMEXPR_NUM_THREADS": "1"})
@@ -52,13 +52,17 @@ def evaluate(combo, games, seed, workers_env=None):
         env["KAG_" + k] = str(v)
     out = subprocess.run(
         [sys.executable, "eval.py", "--json", "--games", str(games),
-         "--seed", str(seed)],
+         "--seed", str(seed), "--opponent", opponent],
         capture_output=True, text=True, env=env, timeout=3600).stdout
     for line in reversed(out.strip().splitlines()):
         if line.startswith("{"):
             got = json.loads(line)
             if got.get("crashed"):
                 return None
+            # Against a real opponent the objective is games won, with bank
+            # only breaking ties. Bank alone has picked six losers today.
+            if opponent != "starter":
+                return got["wins"] * 1e9 + got["median"]
             return got["median"]
     return None
 
@@ -67,7 +71,7 @@ def key(combo):
     return tuple(sorted(combo.items()))
 
 
-CACHE = "optimize_cache.json"
+CACHE = os.environ.get("KAG_OPT_CACHE", "optimize_cache.json")
 
 
 def load_cache():
@@ -93,6 +97,9 @@ def main():
     ap.add_argument("--seed", type=int, default=1000)
     ap.add_argument("--rounds", type=int, default=2)
     ap.add_argument("--workers", type=int, default=6)
+    ap.add_argument("--opponent", default="starter",
+                    help="who to optimise against; a ghost of a real build "
+                         "is a far better signal than `starter`")
     ap.add_argument("--random", type=int, default=0,
                     help="also sample N allocations that move every axis at "
                          "once; coordinate descent alone cannot see those")
@@ -106,12 +113,21 @@ def main():
     def score(combo):
         k = key(combo)
         if k not in seen:
-            seen[k] = evaluate(combo, args.games, args.seed)
+            seen[k] = evaluate(combo, args.games, args.seed,
+                               args.opponent)
             save_score(k, seen[k])
         return seen[k]
 
     base = score(current)
-    print("start %s -> $%s" % (current, format(base or 0, ",")))
+    def show(v):
+        if v is None:
+            return "crash"
+        if args.opponent != "starter":
+            return "%dW  bank $%s" % (v // 1e9, format(int(v % 1e9), ","))
+        return "$%s" % format(v, ",")
+
+    print("optimising against %s" % args.opponent)
+    print("start %s -> %s" % (current, show(base)))
 
     for rnd in range(args.rounds):
         improved = False
@@ -136,9 +152,9 @@ def main():
                 if got is not None and got > (best_score or 0):
                     best, best_score = trial, got
             if best_score and best_score > (base or 0):
-                print("  round %d  %-18s %s -> %s   $%s"
+                print("  round %d  %-18s %s -> %s   %s"
                       % (rnd + 1, axis, current[axis], best[axis],
-                         format(best_score, ",")))
+                         show(best_score)))
                 current, base, improved = best, best_score, True
             else:
                 print("  round %d  %-18s no move (best stays %s)"
@@ -164,7 +180,7 @@ def main():
                         key=lambda kv: kv[0], reverse=True)
         for sc, t in ranked[:6]:
             flag = "  <-- BEATS INCUMBENT" if sc > (base or 0) else ""
-            print("  $%-12s %s%s" % (format(sc, ","), t, flag))
+            print("  %-24s %s%s" % (show(sc), t, flag))
         if ranked and ranked[0][0] > (base or 0):
             base, current = ranked[0]
             print("  a diagonal move wins; goods do interact")
@@ -173,8 +189,8 @@ def main():
 
     print("")
     print("best allocation found: %s" % current)
-    print("bank vs starter: $%s  (incumbent $%s)"
-          % (format(base or 0, ","), format(seen.get(key(START)) or 0, ",")))
+    print("score: %s   (incumbent %s)"
+          % (show(base), show(seen.get(key(START)))))
     print("")
     print("NOT a result yet. Confirm with:")
     print("  py -3.12 h2h.py <variant> --base main.py --games 12")

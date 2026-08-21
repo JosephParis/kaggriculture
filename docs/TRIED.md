@@ -36,6 +36,8 @@ py -3.12 analyse_losses.py                             # diff our farm against t
 py -3.12 optimize.py --games 6 --random 18             # search every acreage knob at once
 py -3.12 profile_build.py --replays replays            # read a build's config out of its replays
 py -3.12 profile_build.py --agent main.py              # ...and the same fields for this build
+py -3.12 make_ghost.py <replay> --out opponents/g.py   # turn a replay into a playable opponent
+py -3.12 eval.py --opponent opponents/ghost_804.py     # play our own 804-rated ladder build
 ```
 
 The last two need Kaggle auth (`py -3.12 -m kaggle auth login`) and are the
@@ -391,12 +393,49 @@ parameterisation, and it has to be rebuilt rather than ported.**
 are the specification: herd down on day 0, own wheat, crew ramped 4 -> 11
 across the first ten days, land at days 6 and 8, melon in on day 4.
 
-One real bug fell out of this: **`BUY_LAND` never decremented the running
-balance**, so every animal and seed order later in the same turn believed it
+**We can now play our own ladder build.** `make_ghost.py` turns a replay into
+a replayable action tape, the same trick `opponents/` already uses for real
+rivals, so the 804 build -- which exists only as a submission -- can be played
+against directly. `opponents/ghost_804.py` is episode 95157730, seat ours.
+
+The result settles the submission question: **`main.py` loses 0-8 to it**,
+$66,974 against $73,919 over eight seeds. This repo's build is genuinely
+weaker than what is already on the ladder, measured rather than inferred from
+ratings, and the ghost is *handicapped* -- a tape cannot react and is replayed
+on boards it never saw, which is why it banks $73.9k here against the $82.4k
+it originally scored. **Submitting this build would be a regression. Do not.**
+
+The ghost is also a far better search signal than `starter`, so `optimize.py`
+takes `--opponent` and switches its objective from bank to games won when
+given one.
+
+Rebuilding the herd-first architecture was attempted and is not close.
+`HERD_FIRST` (buy the herd before the land) and `WHEAT_FIRST_TILES` (give
+wheat ground ahead of melon, since with land delayed the melon zone otherwise
+swallows all 25 tiles of NW) are both in `main.py` defaulting to 0. The best
+configuration found -- herd first, land day 6, own feed, wheat 8, melon 18 --
+banks **$46k against the incumbent's $104k**. The 804 build's descriptions
+name several further pieces this repo does not have (crew sized off the herd,
+delivery at 8, melon cut at day 9, adaptive cow/sheep from live prices,
+endgame feed liquidation), and the opening alone does not carry it.
+
+Two real bugs were fixed along the way.
+
+**`BUY_LAND` never decremented the running balance**, so every animal and seed order later in the same turn believed it
 had $1,000-$2,000 more than it did, against the explicit intent recorded in
 accepted change 14. Fixed. It is behaviour-neutral at the current defaults
 (land is only bought when cash is plentiful) and it matters the moment land
 and herd compete for the same day, which is exactly what the 804 build does.
+
+**Hiring read no balance at all**, which is why `MIN_HANDS>=8` banked $0 and
+why the "hiring floor" row above is void. `_hire_target` now caps the
+morning's bill at `HIRE_BANK_SHARE` (0.25) of the bank -- a share, not a fixed
+reserve, because a fixed reserve throttles the healthy case instead of
+catching the sick one: against an early bank of ~$300 a $400 buffer forces the
+crew to one hand and costs $9k. The guard is always on and leaves the default
+untouched ($104,446 either way, six hands costing $20 against a $120
+balance). `MIN_HANDS=8` now banks **$94,861 and wins 6-0** instead of $0 --
+still worse than the default, but for a real reason rather than bankruptcy.
 
 ### What the replays actually said (20 August)
 

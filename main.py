@@ -139,6 +139,10 @@ HIRE_TO_WORK = _P("HIRE_TO_WORK", 0)
 # moment cash allows.
 HIRE_CASH_BUFFER = _P("HIRE_CASH_BUFFER", 400)
 
+# Hard ceiling on the morning's hire bill, as a share of the bank. Always on:
+# it is what stops the farm hiring itself insolvent. See `_hire_target`.
+HIRE_BANK_SHARE = _P("HIRE_BANK_SHARE", 0.25)
+
 # Floor on the daily crew, independent of the tiles-per-unit arithmetic.
 # The top public farms run about 12 hands against our derived ~6, and hiring
 # is cheap. Swept anyway: 8, 10 and 12 all lose (3-21, 3-21, 0-24), because
@@ -176,6 +180,15 @@ GOOSE_START_DAY = _P("GOOSE_START_DAY", 3)
 # 19 against their day 8. The replays show the cost: they sell 273 milk a game
 # to our 146. Land cannot earn anything the herd would not have earned sooner.
 LAND_START_DAY = _P("LAND_START_DAY", 0)
+
+# Buy the herd before the land, which is the opening the 804-rated submission
+# runs. Only useful together with GOOSE_START_DAY=0 and a feed supply -- the
+# pieces do not port one at a time.
+HERD_FIRST = _P("HERD_FIRST", 0)
+
+# Tiles reserved for wheat ahead of melon, nearest the shed. 0 keeps the
+# historical zoning, where wheat only ever gets leftovers.
+WHEAT_FIRST_TILES = _P("WHEAT_FIRST_TILES", 0)
 GOOSE_BUY_RATE = _P("GOOSE_BUY_RATE", 3)
 # A goose needs about three days to earn its $300 back, so stop buying once
 # the season cannot pay for one.
@@ -902,6 +915,21 @@ def _hire_target(full_plot, n_animal_tiles, active_tiles=None, money=None):
     if HIRE_TO_WORK and money is not None:
         while want > 1 and _hire_cost(want) > max(0, money - HIRE_CASH_BUFFER):
             want -= 1
+    # Never hire the farm broke. This is a floor on solvency, not a policy:
+    # hiring used to read no balance at all, so `MIN_HANDS>=8` paid ~$54/day
+    # through the days 0-10 window when the bank holds ~$300 and nothing earns
+    # until melon on day 11 -- broke by day 9, and then BUY_SEED fires twice in
+    # a whole game and BUY_ANIMAL never. Final bank $0.
+    #
+    # The cap is a *share* of the balance rather than a fixed reserve. A fixed
+    # reserve was tried and it throttles the healthy case instead of catching
+    # the sick one: against an early bank of $300 a $400 buffer forces the crew
+    # to one hand and costs $9k. A quarter of the bank leaves the default
+    # untouched (six hands cost $20 against a $120 balance) and still degrades
+    # smoothly as the farm runs down.
+    if money is not None:
+        while want > 1 and _hire_cost(want) > max(1.0, HIRE_BANK_SHARE * money):
+            want -= 1
     return want
 
 
@@ -968,12 +996,26 @@ def _market_orders(me, private, obs, full_plot, crop_plot, n_geese, n_animal_til
         for _ in range(max(0, want - me.get("hires_today", 0))):
             orders.append(["HIRE"])
 
-    bought = len(me.get("unlocked_quadrants", ["NW"])) - 1
-    if (bought < min(MAX_LAND, len(LAND_PRICES)) and day <= SEASON_DAYS - 8
-            and day >= LAND_START_DAY):
-        if money >= LAND_PRICES[bought] + LAND_CASH_BUFFER:
-            orders.append(["BUY_LAND"])
-            money -= LAND_PRICES[bought]
+    # Land, unless the herd is being bought first. The 804-rated ladder build
+    # places cows on day 0 and buys its quadrants on days 6 and 8; this one
+    # queues BUY_LAND ahead of BUY_ANIMAL, so day 0 spends $1,000 on NE and the
+    # rest on melon seed and the first cow waits for melon money on day 11. A
+    # cow yields eight days after placement, so that is eleven days of milk
+    # given away -- 146 units a game against their 273.
+    def _land_order():
+        bought = len(me.get("unlocked_quadrants", ["NW"])) - 1
+        if (bought < min(MAX_LAND, len(LAND_PRICES))
+                and day <= SEASON_DAYS - 8 and day >= LAND_START_DAY):
+            if money >= LAND_PRICES[bought] + LAND_CASH_BUFFER:
+                return ["BUY_LAND"], LAND_PRICES[bought]
+        return None, 0
+
+    land_order = None
+    if not HERD_FIRST:
+        land_order, spent = _land_order()
+        if land_order:
+            orders.append(land_order)
+            money -= spent
 
     # Sell everything except the feed reserve. Wheat and egg are `log` sinks --
     # they hold ~$20 and ~$40 at any volume we can reach -- so there is nothing
@@ -1014,6 +1056,16 @@ def _market_orders(me, private, obs, full_plot, crop_plot, n_geese, n_animal_til
             if want > 0:
                 orders.append(["BUY_ANIMAL", kind, want])
                 money -= want * cost
+
+    # Herd first: land only gets what the animals did not need. Delaying land
+    # also ramps the crew for free -- `_hire_target` sizes croppers off tiles
+    # owned, so a farm that is still one quadrant hires four hands, not nine,
+    # which is exactly the 4 -> 11 curve the 804 build shows across days 0-9.
+    if HERD_FIRST:
+        land_order, spent = _land_order()
+        if land_order:
+            orders.append(land_order)
+            money -= spent
 
     short_feed = reserve - shed.get("WHEAT", 0)
     if FEED_BUY and short_feed > 0 and day < SEASON_DAYS - 1:
@@ -1130,13 +1182,28 @@ def agent(obs):
 
     # Melon sits just outside the animal zone: it needs no shed trips, only
     # daily water, so distance from the shed costs it little.
-    m0 = len(animal_zone)
+    # Wheat gets its ground *first* when WHEAT_FIRST_TILES is set, ahead of
+    # melon rather than out of the leftovers.
+    #
+    # Zoning runs animals -> melon -> strawberry -> whatever is left, and on
+    # day 0 only NW is unlocked, so the 24-tile melon zone swallows the whole
+    # board and wheat gets nothing until the second quadrant lands. That is
+    # survivable while land is bought on day 0 and melon is the cash engine.
+    # It is fatal to a herd-first opening: the 804 build has wheat on tiles
+    # from day 0 and melon only from day 4, because with the herd bought first
+    # there is no money left for melon seed and wheat -- four days to harvest
+    # against melon's ten -- is what pays for the season.
+    w0 = len(animal_zone)
+    wheat_zone = set(full_plot[w0:w0 + WHEAT_FIRST_TILES])
+    m0 = w0 + WHEAT_FIRST_TILES
     melon_zone = set(full_plot[m0:m0 + MELON_TILES])
     s0 = m0 + MELON_TILES
     berry_zone = set(full_plot[s0:s0 + STRAWBERRY_TILES])
 
     def crop_of(xy):
         xy = tuple(xy)
+        if xy in wheat_zone:
+            return "WHEAT"
         if xy in melon_zone:
             return "MELON"
         if xy in berry_zone:
@@ -1146,7 +1213,7 @@ def agent(obs):
     n_crop_units = max(0, n_units - n_ranchers)
     crop_plot = full_plot[len(animal_zone):][: TILES_PER_UNIT * max(1, n_crop_units)]
     # Never leave melon ground unworked: it outearns wheat many times over.
-    for xy in melon_zone | berry_zone:
+    for xy in wheat_zone | melon_zone | berry_zone:
         if xy not in crop_plot:
             crop_plot.append(xy)
 
