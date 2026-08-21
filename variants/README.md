@@ -28,6 +28,17 @@ Both bank *more* against `starter` than the incumbent and lose decisively in
 the mirror. See TRIED.md, "Routing". Kept so the result can be re-run rather
 than re-derived.
 
+## Sell timing (issue 10)
+
+| file | change from `main.py` | local h2h vs `main.py` |
+|---|---|---|
+| `sell-meter.py` | `SELL_METER=1`: premium goods sold a slice a turn | no-op, $26 on bank |
+| `melon-switch.py` | `MELON_SWITCH=1` at threshold 180: melon ground replanted as strawberry once melon dies | **2-22-0** |
+
+Both are market-aware and both come to nothing, for opposite reasons: there is
+no glut to meter, and the one good that does crash is the one we cannot afford
+to stop growing. See TRIED.md, "Sell timing and the market".
+
 ## Sparring partners
 
 `spar_cow.py` (12 cows, no melon), `spar_melon.py` (melon IPO: 24 melon, 2

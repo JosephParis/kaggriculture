@@ -171,8 +171,8 @@ FEED_BUY = _P("FEED_BUY", 1)
 #
 # This is not the day-9 and day-13 melon cutoffs already in TRIED.md: those
 # stopped planting and left the ground bare. This changes what goes in.
-MELON_SWITCH = _P("MELON_SWITCH", 0)
-MELON_SWITCH_PRICE = _P("MELON_SWITCH_PRICE", 150)
+MELON_SWITCH = _P("MELON_SWITCH", 1)
+MELON_SWITCH_PRICE = _P("MELON_SWITCH_PRICE", 180)
 
 # Sell timing (issue 10). Everything used to be dumped the turn it reached
 # the shed, which is right for some goods and expensive for others.

@@ -151,29 +151,6 @@ FEED_CARRY = _P("FEED_CARRY", 6)
 # than buying it, even though a goose returns $140/day either way.
 FEED_BUY = _P("FEED_BUY", 1)
 
-# Replant melon ground as strawberry once the melon market is dead.
-#
-# Traced prices at midday, seed 1000, against `starter`:
-#
-#   day        0     9    12    18    24    27
-#   MELON    256   271   174   184     4    13
-#   STRAW    128   169   193   243   285   300
-#
-# Melon is a race into a market that never recovers -- the town drains 1/day,
-# so our own first harvest on day 10-11 crashes it and it stays crashed.
-# Strawberry runs the other way: the town drains it 25/day, faster than either
-# farm supplies, so it climbs all season and finishes at 2.5x its base price.
-#
-# The melon block is therefore worth replanting *as melon* only while melon is
-# still worth more than the strawberry that could stand there instead. After
-# that, a second melon cycle spends ten tile-days to sell into a $4 market and
-# knocks down the tail of our own first cycle on the way.
-#
-# This is not the day-9 and day-13 melon cutoffs already in TRIED.md: those
-# stopped planting and left the ground bare. This changes what goes in.
-MELON_SWITCH = _P("MELON_SWITCH", 0)
-MELON_SWITCH_PRICE = _P("MELON_SWITCH_PRICE", 150)
-
 # Sell timing (issue 10). Everything used to be dumped the turn it reached
 # the shed, which is right for some goods and expensive for others.
 #
@@ -197,7 +174,7 @@ MELON_SWITCH_PRICE = _P("MELON_SWITCH_PRICE", 150)
 # Strawberry is the binding case: 44 tiles yield four times each, so a yield
 # day lands ~44 units against a drain of 25/day. At one a turn we clear 24 a
 # day, which is about the drain rate -- hence the default.
-SELL_METER = _P("SELL_METER", 0)
+SELL_METER = _P("SELL_METER", 1)
 SELL_CHUNK = _P("SELL_CHUNK", 1)
 METERED = ("STRAWBERRY", "MILK", "WOOL")
 
@@ -839,7 +816,7 @@ def _sell_qty(item, count, day, shed_total):
 
 
 def _market_orders(me, private, obs, full_plot, crop_plot, n_geese, n_animal_tiles,
-                   crop_of, placeable_by_kind, melon_switch=False):
+                   crop_of, placeable_by_kind):
     """Hire, expand, sell the surplus, restock -- in that order.
 
     Order matters: the queue is capped at `maxMarketOrdersPerTurn` and is
@@ -917,22 +894,10 @@ def _market_orders(me, private, obs, full_plot, crop_plot, n_geese, n_animal_til
     # each crop sized its order off the full bank, and once strawberry joined
     # melon the three orders together emptied the account on day 0 -- no cash
     # to hire, one farmer for 23 tiles, the whole farm dead by day 3.
-    def zoned(xy):
-        """What a bare tile will actually be planted with, for seed demand.
-
-        Seeds used to be bought against the *zoning*, so switching the melon
-        block to strawberry would have bought melon seed for tiles that never
-        take it and left the strawberry short.
-        """
-        got = crop_of(xy)
-        if melon_switch and got == "MELON":
-            return "STRAWBERRY"
-        return got
-
     stranded = 0  # bare tiles whose zoned crop is unaffordable or out of time
     for crop in ("MELON", "STRAWBERRY"):
         bare = sum(1 for xy in crop_plot
-                   if me["tiles"][xy[1]][xy[0]] is None and zoned(xy) == crop)
+                   if me["tiles"][xy[1]][xy[0]] is None and crop_of(xy) == crop)
         bridgeable = BRIDGE_MELON or crop != "MELON"
         if day > _last_plant_day(crop):
             if BRIDGE_LATE and bridgeable:
@@ -954,7 +919,7 @@ def _market_orders(me, private, obs, full_plot, crop_plot, n_geese, n_animal_til
     # land and animals are already queued ahead of this, so they get their cut
     # first whatever is left here.
     bare_wheat = sum(1 for xy in crop_plot
-                     if me["tiles"][xy[1]][xy[0]] is None and zoned(xy) == "WHEAT")
+                     if me["tiles"][xy[1]][xy[0]] is None and crop_of(xy) == "WHEAT")
     if BRIDGE_EARLY or BRIDGE_LATE:
         bare_wheat += stranded
         buffer = BRIDGE_CASH_BUFFER
@@ -1049,14 +1014,6 @@ def agent(obs):
 
     wheat_last = _last_plant_day("WHEAT")
 
-    # Melon dies for good the moment our own first cycle lands; strawberry
-    # climbs all season. Past the point where melon is worth less than the
-    # strawberry that could replace it, replant the block.
-    melon_switch = bool(
-        MELON_SWITCH
-        and obs["market"]["prices"].get("MELON", 250) < MELON_SWITCH_PRICE
-        and day <= _last_plant_day("STRAWBERRY"))
-
     def plant_crop_of(xy):
         """What to actually put in a bare tile *now*.
 
@@ -1066,12 +1023,6 @@ def agent(obs):
         eight -- carries a wheat cycle instead of sitting bare.
         """
         crop = crop_of(xy)
-        # Melon ground, once melon is dead, is just the best-watered land on
-        # the farm. Strawberry is an ongoing crop -- one plant action and then
-        # only survival watering -- so a switch this late still collects two
-        # to four yields into a market that is climbing.
-        if melon_switch and crop == "MELON":
-            return "STRAWBERRY"
         if crop == "WHEAT" or day > wheat_last or seeds_left.get("WHEAT", 0) <= 0:
             return crop
         if crop == "MELON" and not BRIDGE_MELON:
@@ -1115,6 +1066,5 @@ def agent(obs):
             ops.append(op)
 
     market = _market_orders(me, private, obs, full_plot, crop_plot, n_geese,
-                            len(animal_zone), crop_of, placeable_by_kind,
-                            melon_switch)
+                            len(animal_zone), crop_of, placeable_by_kind)
     return {"farmer": ops[0], "hands": ops[1:], "market": market}

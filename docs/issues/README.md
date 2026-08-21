@@ -115,7 +115,7 @@ and put geese and melon on the good tiles".
 | 15 | Rancher action budget: eggs sit at the `max_held` cap | M | **done** |
 | 14 | Endgame: liquidate by day 29, unsold inventory scores zero | S | **done** |
 | [03](03-labour-scheduling.md) | Labour scheduling: assignment across many units | L | **open — sized: ~$12k/game ceiling, deprioritised** |
-| 10 | Sell timing: dump `log` goods, meter `linear`/`sq` goods | M | open |
+| 10 | Sell timing: dump `log` goods, meter `linear`/`sq` goods | M | **closed — measured, no edge** |
 | 09 | Opponent modelling: both farms are visible | L | open |
 
 ### P2 — margins
@@ -149,9 +149,13 @@ is the opponent. 03 was moved to the front on 20 August and is now moved back:
 the tour it asks for has been *sized* (`tour_ceiling.py`) at a ceiling of ~$12k
 a game, over-estimated, against a shared market that halves the score.
 
-- **10 (sell timing)** because self-play still halves the score. Against
-  `starter` we make $51k; against a copy of ourselves, $25k. Every remaining
-  point is in the shared market.
+- ~~**10 (sell timing)**~~ **— closed 20 August, measured, no edge.** The
+  premise was that premium goods need metering. They do not: the town drains
+  milk 19/day, wool 13/day and strawberry 25/day, faster than two farms
+  supply, so all three finish the season *above* base price (milk 1.9x,
+  strawberry 2.5x). Metering them moves the bank by $26. Melon is the only
+  good that crashes, and replanting its ground as strawberry banked +$5,254
+  and lost **2-22**. See TRIED.md.
 - **09 (opponent modelling)**, promoted back from P3 for the same reason. Both
   farms are public. Knowing whether the opponent is growing melon decides
   whether our second melon cycle is worth planting at all.

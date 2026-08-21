@@ -285,6 +285,69 @@ routing without a tour is strictly worse than no pricing at all.
 The knobs are in `main.py` defaulting to 0, and the variants are kept, so this
 is re-runnable rather than re-derivable.
 
+### Sell timing and the market (issue 10)
+
+| Idea | Result |
+|---|---|
+| **Meter the premium goods** (`SELL_METER`) -- sell `linear`/`sq` goods a slice a turn instead of dumping each wave | **no-op**: bank $107,633 -> $107,659 on one seed, same units, same prices |
+| **Replant melon ground as strawberry once melon dies** (`MELON_SWITCH`) | **2-22**, while banking **+$5,254** vs `starter` |
+
+The premise of issue 10 was "dump `log` goods, meter `linear`/`sq` goods".
+**The metering half is unnecessary, and the trace says why.** Midday market
+prices, seed 1000, against `starter`:
+
+| day | 0 | 9 | 12 | 18 | 24 | 27 |
+|---|---|---|---|---|---|---|
+| MILK (base 160) | 169 | 211 | 234 | 268 | 286 | **297** |
+| STRAWBERRY (base 120) | 128 | 169 | 193 | 243 | 285 | **300** |
+| WOOL (base 200) | 206 | 221 | 223 | 226 | 189 | 158 |
+| WHEAT (base 25) | 26 | 31 | 34 | 42 | 47 | **50** |
+| FERTILIZER | 100 | 100 | 100 | 88 | 74 | 67 |
+| MELON (base 250) | 256 | 271 | 174 | 184 | **4** | 13 |
+
+Milk and strawberry finish the season at **1.9x and 2.5x their base price**,
+because the town drains them (19/day and 25/day) faster than two farms supply
+them. There is no glut to meter. `SELL_METER=1` does change the orders --
+wool goes from 9 orders a game to 29, median size 1 -- and moves the bank by
+$26. The knob is kept, defaulting off, because the finding is that it is not
+needed rather than that it is harmful.
+
+**This also retires the `STRATEGY.md` absorption table for sell decisions.**
+That table computes cumulative revenue into a *fresh* market with no drain,
+and it says milk floors by unit 50; we sell 292 units at a realised ~$266.
+For any good the town drains it is wrong by a factor of four. Only melon and
+fertilizer, which the town drains 1/day and 0/day, behave the way it predicts.
+
+The second idea followed from the same trace. Melon is the one good that does
+crash -- $271 on day 9, $174 on day 12, **$4 by day 24** -- because our own
+first harvest lands on day 10-11 and nothing drains it afterwards. So the
+melon block should arguably stop being melon once melon is dead, and become
+strawberry, which is climbing. This is *not* the day-9 and day-13 melon
+cutoffs already recorded above: those stopped planting and left the ground
+bare, this changes what goes into it.
+
+It banks well and loses badly. Swept on bank, six paired seeds:
+
+| threshold | median bank |
+|---|---|
+| 150, 160, 170 | $100,890 (never fires -- melon holds ~$175 until day 21) |
+| **180** | **$106,144** |
+| 190, 200, 220 | $102,746 |
+| 260 | $45,940 (kills melon outright) |
+
+At the best threshold, head to head: **2W 22L 0D**.
+
+**The mechanism is the one bridge wheat already taught us, and this is the
+third measurement of it.** `starter` does not contest melon, so against it the
+melon we give up is melon nobody takes and the swap reads as free. In a mirror
+the melon we do not grow is melon the opponent sells at ~$217 into a market
+that never recovers. Melon acreage is load-bearing in a way the bank against
+`starter` structurally cannot show.
+
+The general rule now has three independent confirmations: **any change that
+trades melon away banks better against `starter` and loses the mirror.**
+Bridge wheat (0-24), priced routing (4-20) and this (2-22) all did it.
+
 ### Herd
 
 | Composition | Result |
@@ -392,8 +455,14 @@ noisy. But the public notebooks warn that a farm printing 100-170k against
    change, and it is measured against `starter`; the mirror is worth less
    still. **Self-play halves the score, so leads 3 and 4 are the bigger
    pool.** Build the tour for the h2h margin if at all, not for the bank.
-3. **Sell timing.** Egg and wheat prices *rise* all season (to ~$92 and ~$47 by
-   day 28) because town drain outpaces supply. Nothing exploits the drift.
+3. **Sell timing -- answered, 20 August, and there is nothing here.** The
+   drift is real (see the price table above) but it is not ours to exploit:
+   this build grows no wheat and keeps no geese, so egg and wheat are not
+   what we sell. What we do sell already prices above base, because the town
+   drains milk, wool and strawberry faster than two farms supply them.
+   Metering them changes the bank by $26. The one good that genuinely
+   crashes is melon, and every attempt to spend less of the farm on melon has
+   lost the mirror.
 4. **Opponent modelling.** Both farms are public. Whether the opponent grows
    melon should decide whether our second cycle is worth planting.
 5. **A non-mirror evaluation.** `panel.py` exists but only the incumbent
