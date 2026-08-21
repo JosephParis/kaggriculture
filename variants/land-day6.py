@@ -175,7 +175,7 @@ GOOSE_START_DAY = _P("GOOSE_START_DAY", 3)
 # A cow first yields eight days after placement, so ours starts milking on day
 # 19 against their day 8. The replays show the cost: they sell 273 milk a game
 # to our 146. Land cannot earn anything the herd would not have earned sooner.
-LAND_START_DAY = _P("LAND_START_DAY", 0)
+LAND_START_DAY = _P("LAND_START_DAY", 6)
 GOOSE_BUY_RATE = _P("GOOSE_BUY_RATE", 3)
 # A goose needs about three days to earn its $300 back, so stop buying once
 # the season cannot pay for one.

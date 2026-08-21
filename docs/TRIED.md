@@ -34,6 +34,8 @@ py -3.12 tour_ceiling.py --games 3                     # what better routing cou
 py -3.12 scan_episodes.py <submission_id>              # pull real episodes, keep the losses
 py -3.12 analyse_losses.py                             # diff our farm against the one that beat us
 py -3.12 optimize.py --games 6 --random 18             # search every acreage knob at once
+py -3.12 profile_build.py --replays replays            # read a build's config out of its replays
+py -3.12 profile_build.py --agent main.py              # ...and the same fields for this build
 ```
 
 The last two need Kaggle auth (`py -3.12 -m kaggle auth login`) and are the
@@ -342,6 +344,59 @@ routing without a tour is strictly worse than no pricing at all.
 
 The knobs are in `main.py` defaulting to 0, and the variants are kept, so this
 is re-runnable rather than re-derivable.
+
+### Reconciling this repo with the ladder submissions (20 August)
+
+The submissions list has twelve entries, not the five recorded below, and a
+19-20 August lineage rates **752-804** against this repo's 581-628. There is
+no API for downloading your own submitted agent and the replay JSON carries no
+source, so the only way to see that build is to read its configuration back
+out of its behaviour. `profile_build.py` does that, and prints the same fields
+for a local agent so the two can be diffed line for line.
+
+| | this repo (`main.py`) | the 804 build |
+|---|---|---|
+| **animals placed** | **day 11-12** | **day 0** |
+| herd | 8 cow / 4 sheep | 13 cow / 2 sheep, and sometimes 5/11 |
+| wheat acreage | 2 | **20** |
+| strawberry / melon | 34 / 24 | 43 / 17-21 |
+| hands, days 0-11 | 6,6,6,6,6,6,6,6,6,6,6,9 | **4,4,4,5,5,5,4,7,8,11,10,11** |
+| max hands | 9 | 12 |
+| 2nd / 3rd quadrant | day 0 / day 10 | **day 6 / day 8** |
+| milk sold | 146 | **273** |
+
+**The headline is the opening.** This build queues `BUY_LAND` ahead of
+`BUY_ANIMAL`, so day 0 spends $1,000 on NE and the rest on melon seed, the
+farm is broke by day 1, and the first cow is not placed until the melon money
+arrives on **day 11**. A cow first yields eight days after placement, so ours
+starts milking on day 19 against their day 8 -- which is the whole of the
+146-versus-273 milk gap.
+
+**None of it ports.** Every piece was tried against this build:
+
+| ported piece | result |
+|---|---|
+| `GOOSE_START_DAY=0` (herd on day 0) | **$46k**, and $31k combined with late land -- catastrophic |
+| herd 13/2, 11/4, 13/4 | all below 8/4 |
+| strawberry 24 (wheat 20) | $99.3k against $104.9k |
+| `LAND_START_DAY=6` (land day 6) | +$464 on bank, **6-18 head to head** |
+
+The day-0 herd starves here because this build *buys* its feed and has no
+income until melon; the 804 build affords a day-0 herd precisely because it
+grows twenty tiles of its own wheat and sizes its crew off the herd. The
+pieces only work together. **It is a different architecture, not a different
+parameterisation, and it has to be rebuilt rather than ported.**
+
+`profile_build.py` gives the target to rebuild against, and the numbers above
+are the specification: herd down on day 0, own wheat, crew ramped 4 -> 11
+across the first ten days, land at days 6 and 8, melon in on day 4.
+
+One real bug fell out of this: **`BUY_LAND` never decremented the running
+balance**, so every animal and seed order later in the same turn believed it
+had $1,000-$2,000 more than it did, against the explicit intent recorded in
+accepted change 14. Fixed. It is behaviour-neutral at the current defaults
+(land is only bought when cash is plentiful) and it matters the moment land
+and herd compete for the same day, which is exactly what the 804 build does.
 
 ### What the replays actually said (20 August)
 

@@ -43,6 +43,15 @@ timing and the market".
 `sell-meter.py` is also a worked example of why the bank is only a filter: its
 bank is within noise of the incumbent's and it still loses two games in three.
 
+## Ported from the 804-rated ladder submission (20 August)
+
+| file | change from `main.py` | result |
+|---|---|---|
+| `land-day6.py` | `LAND_START_DAY=6`: buy land on day 6, as the 804 build does | +$464 bank, **6-18-0** |
+
+The only piece of that build worth a variant, and it still loses. See
+TRIED.md, "Reconciling this repo with the ladder submissions".
+
 ## Accepted
 
 | file | change | result |
