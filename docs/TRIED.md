@@ -227,6 +227,63 @@ to be something that does not occupy a tile.
 
 All three knobs are in `main.py` defaulting to 0.
 
+### Routing
+
+| Idea | Result |
+|---|---|
+| **Priced routing**: rank tasks by `value / (dist + 1)` (`PRICED_ROUTING`) | **4-20**, in both forms tried -- while banking +$796 and +$1,472 vs `starter` |
+
+This is the change issue 03 proposed after the bridge-wheat post-mortem, on the
+reasoning that `URGENCY_W=0` left task choice **value-blind**: it minimises
+distance and uses the tier only to break exact ties, so a cheap task standing
+near an expensive one steals the action. Pricing each task at the dollars it
+earns over the actions it costs -- the walk included, since reaching a tile `d`
+steps away and acting costs `d + 1` -- was supposed to fix that.
+
+It lost, twice, and the tally says why. Two variants, 12 paired games a seat:
+
+| | bank vs `starter` | h2h vs `main.py` |
+|---|---|---|
+| incumbent | $100,890 | -- |
+| v1, everything priced | $101,686 | **4-20-0** |
+| v2, rescue tiers kept absolute + `DIG` unpriced past the cutoff | $102,362 | **4-20-0** |
+
+v2 exists because v1 had a real bug: it let *survival* compete on price, and a
+dying wheat plant is worth 4 x $21 against a melon watering at $217, so the
+plant loses the auction and is a weed by morning. Protecting `T_RESCUE`
+(`PRICED_URGENT_TIER`) and refusing to pay for digging ground past its planting
+cutoff both fixed genuine defects -- and moved the result not at all. The
+mechanism was never the rescues.
+
+**Priced routing converts idle into walking, not into work.**
+`action_stats.py`, 3 games, seeds 1000-1002:
+
+| | incumbent | priced |
+|---|---|---|
+| movement | 42.8% | **47.5%** |
+| idle (`PASS`) | 23.8% | **20.0%** |
+| productive | 33.4% | **32.5%** |
+
+It does what it was asked -- idle falls by 675 actions -- but 841 actions go
+*into movement* and productive work falls by 166. `HARVEST` drops 747 -> 690
+and `COLLECT_FERTILIZER` 593 -> 570.
+
+The reason is that dividing by distance does not price the walk anywhere near
+steeply enough. Melon is worth ~10x a wheat task, so `value / (dist + 1)` will
+send a unit ten tiles across its block to reach it, and everything it walked
+past goes untouched that turn. `URGENCY_W=0` won 24-0 precisely *by* being
+value-blind, and pricing partially undoes it.
+
+**So "value-blind" was the wrong diagnosis of the bridge-wheat failure.** The
+router is not mispricing tasks; a greedy one-step router simply cannot spend a
+value signal, because the only thing it can do with "that tile is worth more"
+is walk toward it, and the walk is the cost. A value signal needs a structure
+that can *sequence* -- the per-day tour -- before it is worth anything. Priced
+routing without a tour is strictly worse than no pricing at all.
+
+The knobs are in `main.py` defaulting to 0, and the variants are kept, so this
+is re-runnable rather than re-derivable.
+
 ### Herd
 
 | Composition | Result |
@@ -303,13 +360,14 @@ noisy. But the public notebooks warn that a farm printing 100-170k against
    it minimises distance and uses tier only to break exact ties, so any cheap
    task added near an expensive one steals from it.
 
-   So the next change is a **price, not a tour**. Score tasks by value per
-   action -- roughly `dollars(task) / (dist + 1)` -- which reduces to today's
-   behaviour when every task is worth the same and to the old lexicographic
-   order when values are far apart. It is a small change to `_best_task_at`,
-   and it is the precondition for filling idle ground, for a second melon
-   cycle, and for the tour. A tour over mispriced tasks optimises the wrong
-   thing.
+   **That "price, not a tour" proposal was built and rejected, 20 August:
+   4-20 in both forms.** See the Routing section above. It converts idle into
+   *movement* (42.8% -> 47.5%) while productive actions fall, because the only
+   thing a one-step greedy router can do with a value signal is walk toward
+   it. The order was backwards: **the tour is the precondition for the price,
+   not the other way round.** A per-unit per-day tour is what can actually
+   spend "that tile is worth more", by sequencing the expensive tile with the
+   cheap ones on the way to it instead of choosing between them.
 3. **Sell timing.** Egg and wheat prices *rise* all season (to ~$92 and ~$47 by
    day 28) because town drain outpaces supply. Nothing exploits the drift.
 4. **Opponent modelling.** Both farms are public. Whether the opponent grows

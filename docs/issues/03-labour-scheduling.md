@@ -83,19 +83,46 @@ worth more than a wheat cycle.
 So the idle is real, it is large, and **it cannot be spent on the land**.
 Anything that uses it has to not occupy a tile.
 
+## Priced routing: built, and rejected
+
+The section above proposed scoring tasks by `value / (dist + 1)` on the
+grounds that `URGENCY_W=0` is value-blind. That was built on 20 August
+(`PRICED_ROUTING`, `PRICED_URGENT_TIER` in `main.py`, both defaulting to 0;
+`variants/priced-routing.py` and `variants/priced-routing-v2.py`).
+
+**It lost 4-20 over 12 paired games a seat, in both forms**, while banking
+*more* against `starter` -- the bridge-wheat signature again. Full write-up in
+TRIED.md. The tally is the useful part:
+
+| | incumbent | priced |
+|---|---|---|
+| movement | 42.8% | **47.5%** |
+| idle (`PASS`) | 23.8% | **20.0%** |
+| productive | 33.4% | **32.5%** |
+
+It spends the idle, exactly as intended, and spends it on **walking**: 675
+fewer `PASS` against 841 more movement actions, with productive work down 166.
+Melon is worth ~10x a wheat task, so dividing by distance still sends a unit
+across its block to reach it, and the work it passes goes undone.
+
+**The diagnosis in the section above was wrong.** The router is not mispricing
+tasks. A greedy one-step router cannot *spend* a value signal at all: the only
+move available to it is "walk toward the expensive thing", and the walk is the
+cost. Being value-blind is what made `URGENCY_W=0` worth 24-0.
+
 ## Next
 
-Two things, in order:
-
-1. **Do not spend more effort filling the idle** until there is a use for it
-   that needs no tile. The obvious candidates are all elsewhere in the backlog
-   (issue 10, sell timing; issue 08, the town shops).
-2. **The lookahead half of this issue is still open and still untouched.**
-   Units take one greedy step per turn with no per-day tour and no coordination
-   between them. Movement is 42.8% of actions, so the ceiling on tour planning
-   is real but bounded -- and note that it is now a *smaller* prize than the
-   23.8% idle that has just been shown to be unspendable. Size it before
-   building it.
+1. **The tour is the precondition for the price, not the reverse.** This is the
+   correction to the ordering this issue previously recorded. A per-unit,
+   per-day tour can sequence an expensive tile *with* the cheap ones on the way
+   to it, rather than choosing between them -- which is the only structure that
+   can turn a value signal into anything but extra walking. Movement is 42.8%
+   of actions, so the prize is real but bounded; size it before building it.
+2. **Do not spend more effort filling the idle** until there is a use for it
+   that needs no tile. Bridge wheat showed it cannot be spent on land, and
+   priced routing showed it cannot be spent on walking. The remaining
+   candidates are elsewhere in the backlog (issue 10, sell timing; issue 08,
+   the town shops).
 
 Worth recording for whoever picks this up: `h2h.py` in this repo sweeps.
 The null control (two identical agents) ties 8-8-8, and every real change

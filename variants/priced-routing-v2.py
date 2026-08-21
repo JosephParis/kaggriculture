@@ -212,7 +212,7 @@ URGENCY_W = _P("URGENCY_W", 0)
 # steps away and acting costs `d + 1` actions. It degrades to the current
 # behaviour when every reachable task is worth the same, and to the old
 # lexicographic order when the values are far apart.
-PRICED_ROUTING = _P("PRICED_ROUTING", 0)
+PRICED_ROUTING = _P("PRICED_ROUTING", 1)
 
 # The tier at and below which pricing is *not* applied, so the old absolute
 # ordering still holds. Pricing every task was tried first and lost 4-20: a

@@ -114,7 +114,7 @@ and put geese and melon on the good tiles".
 |---|---|---|---|
 | 15 | Rancher action budget: eggs sit at the `max_held` cap | M | **done** |
 | 14 | Endgame: liquidate by day 29, unsold inventory scores zero | S | **done** |
-| [03](03-labour-scheduling.md) | Labour scheduling: assignment across many units | L | **open — routing is priced wrong** |
+| [03](03-labour-scheduling.md) | Labour scheduling: assignment across many units | L | **open — needs a tour, not a price** |
 | 10 | Sell timing: dump `log` goods, meter `linear`/`sq` goods | M | open |
 | 09 | Opponent modelling: both farms are visible | L | open |
 
@@ -162,6 +162,13 @@ the opponent, and 03 comes first because the other two feed the same router.
   mis-scheduled it, but because holding melon tiles under a wheat cycle
   de-synchronised the melon block, and melon is a race into a market that never
   recovers. See TRIED.md; the idle is real and still unspent.
+
+  The follow-up that issue then proposed — **priced routing**, scoring tasks by
+  `value / (dist + 1)` — was built and **lost 4-20**, banking more against
+  `starter` both times. It spends the idle on *walking* (movement 42.8% →
+  47.5%, productive work down), because the only thing a one-step greedy router
+  can do with a value signal is walk toward it. **The tour comes first; the
+  price is only worth having once something can sequence.**
 
 Also worth knowing: **egg and wheat prices rise all season** (to ~$92 and ~$47
 by day 28) because town shops drain them faster than we supply. Nothing in the

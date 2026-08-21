@@ -17,6 +17,17 @@ the ladder. When both sides run the same build they dump the same premium
 goods on the same turn, so mirror results systematically punish anything that
 leans on a market the field may not be contesting.
 
+## Rejected, kept for re-running
+
+| file | change from `main.py` | local h2h vs `main.py` |
+|---|---|---|
+| `priced-routing.py` | `PRICED_ROUTING=1`: rank tasks by `value / (dist + 1)` | **4-20-0** |
+| `priced-routing-v2.py` | the same, with `T_RESCUE` kept absolute and `DIG` unpriced past the planting cutoff | **4-20-0** |
+
+Both bank *more* against `starter` than the incumbent and lose decisively in
+the mirror. See TRIED.md, "Routing". Kept so the result can be re-run rather
+than re-derived.
+
 ## Sparring partners
 
 `spar_cow.py` (12 cows, no melon), `spar_melon.py` (melon IPO: 24 melon, 2

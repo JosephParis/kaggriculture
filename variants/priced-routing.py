@@ -212,16 +212,7 @@ URGENCY_W = _P("URGENCY_W", 0)
 # steps away and acting costs `d + 1` actions. It degrades to the current
 # behaviour when every reachable task is worth the same, and to the old
 # lexicographic order when the values are far apart.
-PRICED_ROUTING = _P("PRICED_ROUTING", 0)
-
-# The tier at and below which pricing is *not* applied, so the old absolute
-# ordering still holds. Pricing every task was tried first and lost 4-20: a
-# rescue is worth what the tile still owes for the season, not what tonight's
-# unit sells for, so a dying wheat plant priced at 4 x $21 loses to a melon
-# watering at $217 -- and then the plant is a weed by morning and the tile is
-# gone. Losses here are unrecoverable and asymmetric, so they are not traded.
-# 0 = T_RESCUE only; 1 also protects T_SETUP; -1 prices everything.
-PRICED_URGENT_TIER = _P("PRICED_URGENT_TIER", 0)
+PRICED_ROUTING = _P("PRICED_ROUTING", 1)
 
 # What one unit of each product is worth, used only to price tasks above.
 # These are the environment's base prices -- the same numbers the tier
@@ -516,13 +507,8 @@ def _crop_task(tile, day, crop="WHEAT"):
             return (T_WATER, "WATER", unit)
         return None
     if kind == "WEED":
-        if last_day:
-            return None
-        # Digging earns nothing itself; it buys back a tile that can be
-        # planted. Past the crop's cutoff nothing can be planted on it again,
-        # so clearing it buys nothing and must not outbid a harvest.
-        spent = day > _last_plant_day(crop)
-        return (T_DIG, "DIG", 0.0 if spent else _plant_value(crop))
+        # Digging earns nothing itself; it buys back a tile that can be planted.
+        return None if last_day else (T_DIG, "DIG", _plant_value(crop))
     return None
 
 
@@ -599,14 +585,8 @@ def _task_key(tier, value, dist):
     equal worth.
     """
     if PRICED_ROUTING:
-        # Existential work is not for sale: a plant that dies or an animal that
-        # escapes costs the whole tile for the rest of the season, which no
-        # single rich action pays back. Those tiers keep the absolute ordering
-        # and everything else competes on rate.
-        if tier <= PRICED_URGENT_TIER:
-            return (0, tier, dist, 0.0)
-        return (1, 0, 0, -(value / (dist + 1.0)))
-    return (tier * URGENCY_W + dist, tier, dist, 0.0)
+        return (-(value / (dist + 1.0)), tier, dist)
+    return (tier * URGENCY_W + dist, tier, dist)
 
 
 def _best_task(tiles, block, classify, pos):
