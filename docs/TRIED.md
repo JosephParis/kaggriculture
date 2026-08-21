@@ -401,7 +401,53 @@ So the finding is real and the fix is not this one. The 804 builds lose from in
 front, on day 11, to a melon market they reach last -- and whatever gets them
 there faster is not the delivery threshold.
 
-### Three ladder tests: bank was the liar, the mirror was not
+### The four days are at the *planting* end, not the selling end
+
+`melon_lifecycle.py` dates every link in the chain -- planted, ripe at age 10,
+harvested, carried, in the shed, sold -- for both farms in a replay. The
+answer is not where it was being looked for:
+
+| | planted | ripe | harvested | shed | sold |
+|---|---|---|---|---|---|
+| our submitted builds | **day 4** | day 14 | day 10 | day 14 | **day 14** |
+| the opponent | **day 0** | day 10 | day 10 | day 10 | **day 10** |
+
+The harvest-to-market pipeline is **tight**: ripe on day 14, sold on day 14.
+Nothing is hoarded and nothing is slow. The builds simply put melon in the
+ground four days late, because the herd-first opening spends day-0 cash on
+animals and melon seed waits its turn.
+
+So the melon race is lost in the **opening**, and it is the direct price of
+herd-first. That build trades it knowingly or not: 273 milk against our 146,
+and the melon market reached last in 19 of 20 losses. The agent in this repo
+makes the opposite trade -- melon in on day 0 and sold on day 10, with half
+the milk.
+
+### ...and a retraction: those ladder numbers had not settled
+
+The section below concluded from A and B that "bank was the liar, the mirror
+was not". **That was read too early and is retracted.** Ratings warm from 600
+and were still moving:
+
+| | first read | after ~27 episodes |
+|---|---|---|
+| A, wheat 20 | 628.9 | 665.5 *(only 10 episodes -- still unsettled)* |
+| B, fourth quadrant | 646.7 | **742.2** |
+| C, 13 cows | -- | 643.2 |
+| baseline | 714.1 | 714.1 *(32 episodes)* |
+
+**B is now above the baseline**, which is the opposite of what the earlier
+reading supported: bank said +$4,397 and the mirror said 0-24, and on current
+numbers bank was closer to right. C and A remain clearly worse, so the herd
+and wheat sweeps do look sound.
+
+The lesson is narrower and more useful than the instrument claim it replaces:
+**do not read a ladder rating before it has played its episodes.** This file
+already recorded that ratings warm from 600 and that five instances split the
+pool. Twenty-seven episodes is a reading; ten is not, and neither is the
+number an hour after submitting.
+
+### Three ladder tests: bank was the liar, the mirror was not (RETRACTED ABOVE)
 
 Three builds, each one mechanism away from the live 714-rated agent, chosen
 where local scoring said "no" and the 804-rated build said "yes".
