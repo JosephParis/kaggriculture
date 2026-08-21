@@ -401,6 +401,77 @@ So the finding is real and the fix is not this one. The 804 builds lose from in
 front, on day 11, to a melon market they reach last -- and whatever gets them
 there faster is not the delivery threshold.
 
+### What the strong farms actually do: it is strawberry volume, not wheat
+
+**Any public episode downloads by id**, not just our own -- `kaggle
+competitions replay <id>` works on episodes we never played. The catch is that
+episode ids are global across every Kaggle simulation, so random sampling
+mostly pulls Card Battle and Halite; 13 of 16 sampled ids were other games.
+Our own replays are the efficient source, since each one contains a real
+opponent, and the best of them banked **$128,897**.
+
+Revenue by product, quantcrypto3 ($128,897) against our 804 build ($96,691) in
+the same game:
+
+| product | them | us |
+|---|---|---|
+| **STRAWBERRY** | **$68,985** | **$37,300** |
+| MILK | $53,068 | $55,023 |
+| WHEAT | $29,270 | $0 |
+| **MELON** | **$15,385** | **$15,160** |
+| FERTILIZER | $9,993 | $15,064 |
+| **total revenue** | **$181,691** | **$127,616** |
+| purchases | $49,392 | $25,780 |
+
+Three things fall out, and the first corrects an earlier entry in this file.
+
+**Wheat is not the edge.** They sell 707 wheat for $29,270 and *buy* 806 for
+$32,482 -- net **−$3,212**. It is feed churn, not profit. The earlier finding
+that "the farms that beat us are wheat farms" measured the sold column and
+missed the bought one.
+
+**Strawberry is the whole gap**, +$31,685, and at an identical **$254 a unit**
+on both sides. Pure volume: 272 units against 147.
+
+**Melon is market-capped.** Their twelve melon tiles earn $15,385; our twenty
+earn $15,160. **Eight of our melon tiles earn nothing at all.**
+
+The volume comes from acreage and plant-out speed:
+
+| strawberry tiles | day 10 | day 15 | day 20 |
+|---|---|---|---|
+| them | 14 | **54** | 54 |
+| us | 15 | 37 | 43 |
+
+They put 28 tiles in on a single day (day 11) and are at full acreage by 15.
+Strawberry yields at ages 10, 12, 14 and 16, so a tile planted on day 11 takes
+four yields and one planted on day 15 takes three.
+
+**And our acreage is capped by the crew, not by the knob.** Raising
+`STRAWBERRY_TILES` from 40 to 54 changes nothing -- the farm still reaches 38
+tiles -- because the worked plot is `TILES_PER_UNIT x crop units`. Cutting
+melon to 12 frees ground and strawberry still only reaches 40. quantcrypto3
+runs **11 hands** to our 9.
+
+Capacity is worth a great deal on bank and, once again, reads flat on the
+contested measures:
+
+| | bank vs `starter` | h2h | ghosts |
+|---|---|---|---|
+| incumbent | $95,766 | -- | 16/18 |
+| `TILES_PER_UNIT=10` | **$110,985** | 12-12 | 10/18 |
+| `MIN_HANDS=11, MAX_HANDS=13` | **$106,023** | -- | -- |
+
+That is the same signature `MAX_LAND=3` carries, and `MAX_LAND=3` is rated
+**742.2** against the baseline's 714.1. Both are capacity bought with early
+tempo, which is the class of change a mirror cannot price. `variants/capacity.py`
+combines land 3, tiles-per-unit 10 and hands 13 for a ladder slot.
+
+**And the hands result matters because its old evidence was void.** TRIED.md
+rejected a hiring floor at 3-21 and 0-24, measured on a farm that was
+bankrupting itself through the hiring bug fixed earlier today. With the
+solvency guard in place, eleven hands banks $10k more than nine.
+
 ### Our 804 build plays the same game every time; only the opponent varies
 
 `win_vs_loss.py` compares one build's wins against its **own** losses, which

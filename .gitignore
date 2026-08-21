@@ -41,3 +41,5 @@ opt_ghost_cache.json
 data/
 weights/
 logs/
+scout/
+probe/
