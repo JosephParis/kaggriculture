@@ -43,6 +43,8 @@ py -3.12 profile_build.py --replays replays            # read a build's config o
 py -3.12 profile_build.py --agent main.py              # ...and the same fields for this build
 py -3.12 make_ghost.py <replay> --out opponents/g.py   # turn a replay into a playable opponent
 py -3.12 eval.py --opponent opponents/ghost_804.py     # play our own 804-rated ladder build
+py -3.12 score_ghosts.py --knobs K=v                   # win rate vs our own submitted builds
+py -3.12 check_forecast.py                             # is the price projection better than guessing?
 ```
 
 The last two need Kaggle auth (`py -3.12 -m kaggle auth login`) and are the
@@ -351,6 +353,78 @@ routing without a tour is strictly worse than no pricing at all.
 
 The knobs are in `main.py` defaulting to 0, and the variants are kept, so this
 is re-runnable rather than re-derivable.
+
+### Reading the market: a forecast, and what it is worth (21 August)
+
+Everything above this point is a farm that decides its whole season on day 0.
+The acreage, the herd split and the melon cutoff are constants fitted by
+sweeps, and none of them looks at what the market is doing or at what the
+other farm has in the ground. `main.py` now carries a copy of the
+environment's pricing so it can value a *future* harvest.
+
+Nothing about that price is unknown:
+
+- **The price function is exact.** `_price_at` reproduces `market_price` on
+  **4,000 of 4,000** random inventories. The parameters are duplicated rather
+  than imported, since a submitted agent has no `kaggle_environments`.
+- **The drain is exact, not an average.** `obs["town"]["unlocked_shops"]`
+  lists shop *instances* including repeats, so `_drain_rates` computes this
+  game's real demand rather than the expectation over the random draw.
+- **Both farms' pipelines are visible.** `obs["farms"]` is public, so
+  `_pipeline` counts the units already in the ground on either side --
+  their melon ripening is observable days before it lands.
+
+`_projected_price(view, item, days)` puts those together:
+`inventory - drain x days + our pipeline + their pipeline`.
+
+**The forecast is real, and it was measured before being trusted.**
+`check_forecast.py` records the projection made on day *d* for horizon *h*,
+then compares it against the price actually seen on day *d+h*, and scores the
+naive "today's price holds" alongside as the baseline to beat:
+
+| | h=4 | h=10 | h=16 |
+|---|---|---|---|
+| MELON, projected vs naive | 17 / 19 | 33 / 48 | **37 / 62** |
+| STRAWBERRY | 19 / 19 | 22 / 46 | **36 / 71** |
+| WHEAT | 1 / 3 | 4 / 9 | 8 / 14 |
+
+It beats carry-forward on **14 of 15** item/horizon pairs and roughly halves
+the error at long horizons, which is exactly where a planting decision needs
+it.
+
+**Accepted: the herd composition is now a market read, not a constant.**
+Cow and sheep both stand on a PASTURE, so trading one for the other costs no
+structure and no action -- which is what makes it cheap enough to redecide
+every turn. Only unplaced tiles switch; an animal already grazing is what it
+is, and geese are never substituted because a COOP is a different building.
+
+The two curves diverge hard enough to be worth watching: wool is `sq` above
+I0 with T=105, milk `linear` with T=122, and the town drains milk 19/day
+against wool's 13. A pasture zoned for milk while the market already carries
+400 units of it is worth **$22/day**; the same tile as wool is worth **$348**.
+
+| | seed 3000 | 5000 | 6000 | total |
+|---|---|---|---|---|
+| fixed 6 cows / 2 sheep | 11/18 | 16/18 | 9/18 | 36/54 |
+| **adaptive** | **12/18** | 16/18 | **10/18** | **38/54** |
+
+It also banks more ($57.5k -> $74.6k on seed 5000) and **makes `N_COWS` and
+`N_SHEEP` irrelevant** -- 6/2, 4/4 and 0/8 all converge to the same result,
+which is the point. Two hand-fitted constants are now one rule. Per-turn p99
+is 1.34ms against the 1000ms `actTimeout`.
+
+**Rejected: adaptive crop choice** (`ADAPTIVE_CROP`, defaulting to 0). Letting
+the same projection pick the crop per tile, with `MELON_LAST_PLANT` relaxed so
+it could decide the second melon cycle itself, scored **13/18 on seed 3000 and
+7/18 on both held-out sets** -- 27/54 against the adaptive herd's 38/54. The
+seed-3000 gain was noise, and it would have shipped had it not been validated
+out of sample. Worth keeping in mind that the rule *approximately rediscovers*
+the day-9 cutoff on its own (10/18 where the fixed cutoff gets 11/18), so the
+forecast is sound and it is the per-tile substitution that is not.
+
+**The opponent read is worth about a game.** Ablating it -- `RIVAL_WEIGHT=0`,
+which prices as if the other farm did not exist -- costs 12/18 -> 11/18.
+Small, but it is the first thing in this repo to make issue 09 pay anything.
 
 ### Tuning against our own submissions, and an intransitivity
 

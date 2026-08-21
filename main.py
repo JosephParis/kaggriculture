@@ -36,6 +36,7 @@ Policy constants can be overridden by `KAG_*` environment variables so
 `sweep.py` can tune them without editing this file; the defaults are what gets
 submitted. See docs/STRATEGY.md for the economics behind the numbers.
 """
+import math
 import os
 
 BOARD = 10
@@ -209,6 +210,29 @@ HERD_FIRST = _P("HERD_FIRST", 0)
 # in the way everything is worse here: 10 tiles banks $74.7k and wins 6 of 18,
 # 16 tiles banks $76.3k and wins 2.
 WHEAT_FIRST_TILES = _P("WHEAT_FIRST_TILES", 6)
+
+# How much of the opponent's visible pipeline to believe when projecting a
+# price. 1.0 takes their ground at face value and assumes they sell all of it.
+RIVAL_WEIGHT = _P("RIVAL_WEIGHT", 1.0)
+
+# Choose what to plant, and which animal to buy, from the *projected* price at
+# harvest rather than from a fixed zoning fitted once against `starter`.
+#
+# Both decisions are currently blind in the same way. The melon block is melon
+# because a sweep said 20 tiles, whatever the opponent is doing; the herd is
+# 6 cows and 2 sheep because a sweep said so, whatever milk and wool are
+# worth. But melon is a race into a market that never recovers, so a second
+# cycle is worth $250 a unit or $1 depending entirely on whether the other
+# farm has melon in the ground -- which is visible.
+#
+# The forecast is worth trusting here: measured against simply assuming
+# today's price holds, it wins on 14 of 15 item/horizon pairs and roughly
+# halves the error at long horizons (melon at 16 days, 36.8 against 62.4).
+ADAPTIVE_CROP = _P("ADAPTIVE_CROP", 0)
+ADAPTIVE_HERD = _P("ADAPTIVE_HERD", 1)
+# Only substitute when the alternative is better by this margin, so the farm
+# does not thrash between crops on noise.
+ADAPTIVE_MARGIN = _P("ADAPTIVE_MARGIN", 1.15)
 GOOSE_BUY_RATE = _P("GOOSE_BUY_RATE", 3)
 # A goose needs about three days to earn its $300 back, so stop buying once
 # the season cannot pay for one.
@@ -526,6 +550,210 @@ def _animal_day_value(want):
     interval = spec["interval"]
     per_day = (1.0 + interval) / interval
     return per_day * UNIT_VALUE.get(spec["product"], 0)
+
+
+# ---------------------------------------------------------------- market model
+#
+# A copy of the environment's pricing, so the agent can price a *future*
+# harvest rather than only react to today's board. A submitted agent cannot
+# import kaggle_environments, so these are duplicated rather than referenced.
+#
+# The point of having it here is that every input to a future price is
+# observable: current inventory and the unlocked shops are in the observation,
+# and **both farms' tiles are public**, so the supply already in the ground on
+# either side can be counted. That makes the price a crop will fetch when it
+# ripens a computable quantity instead of a guess.
+#
+# The shape of the curves is what makes it worth doing. Premium goods are
+# violently steep and staples are flat: milk, strawberry and melon reach the
+# $1 floor about 200 units above I0, while wheat (T=400, `log` above) and egg
+# (T=332, `log`) barely move at any volume two farms can reach. Being wrong
+# about melon is expensive; being wrong about wheat is not.
+MARKET_I0 = 10000
+PRICE_FLOOR = 1
+HINGE_GAIN = 8.0
+# base, T, below_func, below_target, above_func, above_target
+MARKET_PARAMS = {
+    "WHEAT":      (25, 400, "sqrt", 0.8, "log", 0.2),
+    "CARROT":     (35, 450, "hinge", 1.0, "sqrt", 0.7),
+    "TOMATO":     (60, 200, "hinge", 0.4, "sqrt", 0.6),
+    "STRAWBERRY": (120, 100, "sqrt", 0.7, "linear", 1.6),
+    "MELON":      (250, 300, "log", 0.2, "sq", 3.6),
+    "EGG":        (50, 332, "hinge", 0.4, "log", 0.2),
+    "MILK":       (160, 122, "sqrt", 0.6, "linear", 1.6),
+    "WOOL":       (200, 105, "log", 0.2, "sq", 3.2),
+    "FERTILIZER": (100, 200, "linear", 0.4, "linear", 0.4),
+}
+SHOP_WANTS = {
+    "BAKERY": ("EGG", "WHEAT"),
+    "PIZZA_SHOP": ("MILK", "TOMATO", "WHEAT"),
+    "BRUNCH_SPOT": ("EGG", "WHEAT", "STRAWBERRY"),
+    "YARN_STORE": ("WOOL",),
+    "ICE_CREAM_SHOP": ("STRAWBERRY", "MILK", "WHEAT"),
+    "PET_CAFE": ("CARROT",),
+    "SMOOTHIE_SHOP": ("STRAWBERRY", "MILK"),
+    "FARMERS_MARKET": ("WHEAT", "CARROT", "TOMATO", "STRAWBERRY"),
+}
+TOWN_CENTER_PRODUCTS = ("WHEAT", "CARROT", "TOMATO", "STRAWBERRY", "MELON",
+                        "EGG", "MILK", "WOOL")
+
+
+def _shape(func, x, T):
+    if func == "linear":
+        return x
+    if func == "sq":
+        return x * x
+    if func == "sqrt":
+        return x ** 0.5
+    if func == "log":
+        return math.log(1.0 + x)
+    if func == "hinge":
+        if not T or T <= 0:
+            return x
+        u = x / float(T)
+        return u + HINGE_GAIN * max(0.0, u - 1.0) ** 2
+    return x
+
+
+def _price_at(item, inventory):
+    """What one unit fetches at a given market inventory."""
+    spec = MARKET_PARAMS.get(item)
+    if spec is None:
+        return 0.0
+    base, T, below_f, below_t, above_f, above_t = spec
+    if inventory < MARKET_I0:
+        amp = below_t * base / _shape(below_f, T, T)
+        price = base + amp * _shape(below_f, MARKET_I0 - inventory, T)
+    else:
+        amp = above_t * base / _shape(above_f, T, T)
+        price = base - amp * _shape(above_f, inventory - MARKET_I0, T)
+    return max(PRICE_FLOOR, price)
+
+
+def _drain_rates(town):
+    """Units a day the town removes, per product -- exactly, not on average.
+
+    The town centre takes one of each non-fertilizer product a day. Each
+    unlocked shop *instance* consumes one of everything it demands every four
+    turns, doubled when it wants only one product. `unlocked_shops` lists
+    instances and repeats them, so this is the real rate for this game rather
+    than an expectation over the random draw.
+    """
+    rate = {}
+    for p in MARKET_PARAMS:
+        rate[p] = 1.0 if p in TOWN_CENTER_PRODUCTS else 0.0
+    for name in (town or {}).get("unlocked_shops", []) or []:
+        wants = SHOP_WANTS.get(name)
+        if not wants:
+            continue
+        per_day = 12.0 if len(wants) == 1 else 6.0
+        for p in wants:
+            rate[p] = rate.get(p, 0.0) + per_day
+    return rate
+
+
+def _pipeline(farm, day, horizon):
+    """Units each product will bring to market inside `horizon` days.
+
+    Both farms are counted the same way, which is the whole point: the
+    opponent's tiles are public, so melon ripening on their side is visible
+    days before it lands and craters the price we were counting on.
+    """
+    out = {}
+    for row in (farm.get("tiles") or []):
+        for t in row:
+            if not isinstance(t, dict):
+                continue
+            if t.get("kind") == "PLANT":
+                crop = t.get("crop")
+                spec = CROP_SPEC.get(crop)
+                if spec is None:
+                    continue
+                age = day - t.get("planted_day", day)
+                if spec.get("ongoing"):
+                    left = max(0, spec["harvest_age"] + 6 - age)
+                    n = min(horizon, left) / 2.0
+                else:
+                    due = spec["harvest_age"] - age
+                    n = spec["units"] if 0 <= due <= horizon else 0
+                if n:
+                    out[crop] = out.get(crop, 0.0) + n
+            elif t.get("animal"):
+                spec = ANIMAL_SPEC.get(t["animal"])
+                if not spec:
+                    continue
+                interval = max(1, spec["interval"])
+                out[spec["product"]] = out.get(spec["product"], 0.0) + \
+                    horizon * (1.0 + interval) / interval
+                out["FERTILIZER"] = out.get("FERTILIZER", 0.0) + horizon
+    return out
+
+
+def _market_view(obs, player):
+    """Everything needed to price a harvest `d` days from now."""
+    farms = obs.get("farms") or []
+    day = obs["day"]
+    mine = _pipeline(farms[player], day, 30) if len(farms) > player else {}
+    theirs = _pipeline(farms[1 - player], day, 30) if len(farms) > 1 else {}
+    return {"inv": dict((obs.get("market") or {}).get("inventory") or {}),
+            "drain": _drain_rates(obs.get("town")),
+            "mine": mine, "theirs": theirs, "day": day}
+
+
+def _projected_price(view, item, days):
+    """Price `item` fetches when something planted now ripens in `days`.
+
+    Inventory moves three ways in between: the town drains it, we add to it,
+    and so does the opponent. Their share is scaled by RIVAL_WEIGHT, since
+    counting their ground assumes they sell all of it.
+    """
+    if days <= 0:
+        days = 1
+    inv = view["inv"].get(item, MARKET_I0)
+    frac = min(1.0, days / 30.0)
+    inv -= view["drain"].get(item, 0.0) * days
+    inv += view["mine"].get(item, 0.0) * frac
+    inv += view["theirs"].get(item, 0.0) * frac * RIVAL_WEIGHT
+    return _price_at(item, inv)
+
+
+def _crop_rate(view, crop):
+    """Dollars per tile-day for planting `crop` now, at projected prices.
+
+    A tile is an asset let for the crop's whole occupancy, so the comparison
+    has to be per tile-day: melon returns six units in eleven days, strawberry
+    four over seventeen. Each is valued at what it will fetch when it lands,
+    not at what it would fetch today.
+    """
+    spec = CROP_SPEC.get(crop)
+    if spec is None:
+        return 0.0
+    if spec.get("ongoing"):
+        life = spec["harvest_age"] + 6
+        horizon = spec["harvest_age"] + 3      # middle of its yield run
+    else:
+        life = spec["harvest_age"] + 1
+        horizon = spec["harvest_age"]
+    price = _projected_price(view, crop, horizon)
+    return spec["units"] * price / float(life)
+
+
+def _animal_rate(view, kind):
+    """Dollars per tile-day for placing `kind` now, at projected prices.
+
+    CARE banks +1 a day and pays out on the next scheduled production, so an
+    animal on interval `i` yields `1 + i` units every `i` days. Fertilizer is
+    a second stream off the same tile and is counted, since it is what makes a
+    neglected animal still worth its ground.
+    """
+    spec = ANIMAL_SPEC.get(kind)
+    if spec is None:
+        return 0.0
+    interval = max(1, spec["interval"])
+    per_day = (1.0 + interval) / interval
+    horizon = spec.get("first_yield", 8)
+    return (per_day * _projected_price(view, spec["product"], horizon)
+            + _projected_price(view, "FERTILIZER", horizon))
 
 
 def _step_toward(x, y, tx, ty):
@@ -970,7 +1198,8 @@ def _sell_qty(item, count, day, shed_total):
 
 
 def _market_orders(me, private, obs, full_plot, crop_plot, n_geese, n_animal_tiles,
-                   crop_of, placeable_by_kind, melon_switch=False):
+                   crop_of, placeable_by_kind, melon_switch=False,
+                   view=None):
     """Hire, expand, sell the surplus, restock -- in that order.
 
     Order matters: the queue is capped at `maxMarketOrdersPerTurn` and is
@@ -1066,7 +1295,15 @@ def _market_orders(me, private, obs, full_plot, crop_plot, n_geese, n_animal_til
     # the most per tile per day, and an animal bought early compounds for the
     # rest of the season. Payback is under two days for both.
     if GOOSE_START_DAY <= day <= LAST_GOOSE_DAY:
-        for kind in ("SHEEP", "COW", "GOOSE"):
+        # Buy the animal whose product is worth most at projected prices, not
+        # the one a sweep picked. Wool and milk diverge hard: wool is `sq`
+        # above I0 with T=105 and floors on a glut, milk is `linear` with
+        # T=122 and the town drains it 19/day, so which one is worth having
+        # depends on what is already in both farms' pastures.
+        order = ("SHEEP", "COW", "GOOSE")
+        if ADAPTIVE_HERD and view is not None:
+            order = tuple(sorted(order, key=lambda k: -_animal_rate(view, k)))
+        for kind in order:
             quota = placeable_by_kind.get(kind, 0) - shed.get(kind, 0)
             if quota <= 0:
                 continue
@@ -1170,14 +1407,41 @@ def agent(obs):
     full_plot = _workable_tiles(tiles)
     animal_zone = full_plot[:GOOSE_TARGET]
 
+    # One market read a turn, shared by the herd and planting decisions.
+    view = None
+    if ADAPTIVE_CROP or ADAPTIVE_HERD:
+        view = _market_view(obs, player)
+
     # Zone the herd: sheep nearest the shed, then cows, then any geese.
     # Feed comes out of the shed every day, so the walk is paid over and over
     # and the animals worth the most per tile get the shortest one.
     plan = ["SHEEP"] * N_SHEEP + ["COW"] * N_COWS + ["GOOSE"] * N_GEESE
     zoned = {tuple(xy): plan[i] for i, xy in enumerate(animal_zone) if i < len(plan)}
 
+    # Which of cow or sheep is worth more *right now*, decided once a turn.
+    #
+    # Both stand on a PASTURE, so trading one for the other costs no structure
+    # and no action -- which is what makes this cheap enough to do at all. A
+    # goose needs a COOP, so geese are never substituted.
+    #
+    # It matters because the two curves diverge violently. Wool is `sq` above
+    # I0 with T=105, milk `linear` with T=122, and the town drains milk 19/day
+    # against wool's 13. A pasture zoned for milk while the market is already
+    # carrying 400 units of it is worth $22 a day; the same tile as wool is
+    # worth $348.
+    herd_pick = None
+    if ADAPTIVE_HERD and view is not None:
+        herd_pick = ("COW" if _animal_rate(view, "COW")
+                     >= _animal_rate(view, "SHEEP") else "SHEEP")
+
     def animal_of(xy):
-        return zoned.get(tuple(xy), "COW")
+        base = zoned.get(tuple(xy), "COW")
+        if herd_pick is None or base == "GOOSE":
+            return base
+        tile = tiles[xy[1]][xy[0]]
+        if isinstance(tile, dict) and tile.get("animal"):
+            return tile["animal"]      # already grazing; it is what it is
+        return herd_pick
 
     n_geese = sum(1 for (x, y) in animal_zone
                   if isinstance(tiles[y][x], dict) and "animal" in tiles[y][x])
@@ -1269,6 +1533,20 @@ def agent(obs):
         # to four yields into a market that is climbing.
         if melon_switch and crop == "MELON":
             return "STRAWBERRY"
+        # Adaptive substitution: plant whatever the projected prices say is
+        # worth most per tile-day, provided it beats the zoned crop by enough
+        # to be worth the churn. This is what makes the second melon cycle a
+        # decision rather than a constant -- if their melon is ripening, ours
+        # is worth the floor and the tile goes to strawberry instead.
+        if ADAPTIVE_CROP and view is not None:
+            best, best_rate = crop, _crop_rate(view, crop) * ADAPTIVE_MARGIN
+            for alt in ("MELON", "STRAWBERRY", "WHEAT"):
+                if alt == crop or day > _last_plant_day(alt):
+                    continue
+                rate = _crop_rate(view, alt)
+                if rate > best_rate:
+                    best, best_rate = alt, rate
+            return best
         if crop == "WHEAT" or day > wheat_last or seeds_left.get("WHEAT", 0) <= 0:
             return crop
         if crop == "MELON" and not BRIDGE_MELON:
@@ -1313,5 +1591,5 @@ def agent(obs):
 
     market = _market_orders(me, private, obs, full_plot, crop_plot, n_geese,
                             len(animal_zone), crop_of, placeable_by_kind,
-                            melon_switch)
+                            melon_switch, view)
     return {"farmer": ops[0], "hands": ops[1:], "market": market}

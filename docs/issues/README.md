@@ -119,7 +119,7 @@ and put geese and melon on the good tiles".
 | 14 | Endgame: liquidate by day 29, unsold inventory scores zero | S | **done** |
 | [03](03-labour-scheduling.md) | Labour scheduling: assignment across many units | L | **open — sized: ~$12k/game ceiling, deprioritised** |
 | 10 | Sell timing: dump `log` goods, meter `linear`/`sq` goods | M | **closed — the premise is wrong; dump everything** |
-| 09 | Opponent modelling: both farms are visible | L | open |
+| 09 | Opponent modelling: both farms are visible | L | **partly done — worth ~1 game in 18** |
 
 ### P2 — margins
 
