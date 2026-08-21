@@ -43,6 +43,18 @@ timing and the market".
 `sell-meter.py` is also a worked example of why the bank is only a filter: its
 bank is within noise of the incumbent's and it still loses two games in three.
 
+## Crew and land (20 August)
+
+| file | change from `main.py` | result |
+|---|---|---|
+| `hire-to-work.py` | `HIRE_TO_WORK=1`: crew sized off work and cash, not tiles owned | worse, $94.2k vs $100.9k |
+| `land-3.py` | `MAX_LAND=3`: buy the fourth quadrant | **0-24** mirror; 12W-0L either way vs recorded farms |
+
+`land-3.py` is the interesting failure. It banks more than the incumbent
+against `starter` and against two of the three recorded farms, and it still
+does not qualify: every recorded farm loses 12-0 to *both* builds, so the
+bank margin buys no rating, and the mirror says 0-24.
+
 ## Sparring partners
 
 `spar_cow.py` (12 cows, no melon), `spar_melon.py` (melon IPO: 24 melon, 2

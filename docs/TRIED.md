@@ -71,6 +71,17 @@ Five rules learned the hard way, each after getting a result backwards:
   was right -- but the real-opponent test is what exposed the farm sitting
   two-thirds empty in the first place.
 
+  **A caveat worth holding, recorded 20 August but not proven.** Five separate
+  changes now bank better against `starter` and lose the mirror decisively.
+  A clone is maximally correlated with us in exactly the two tempo races that
+  never recover -- melon and fertilizer -- so anything that spends money or
+  time early hands the clone those races and loses every game. That is a
+  reason to suspect the mirror over-punishes, and it is *not* a reason to
+  overrule it: when the fourth quadrant was actually tried against the
+  recorded farms, both builds won 12-0 and the bank margin it gained buys no
+  rating. Until something discriminates on win/loss against a non-mirror
+  opponent, the mirror is still the only signal we have.
+
 ---
 
 ## Mechanics worth knowing before proposing anything
@@ -95,6 +106,26 @@ Five rules learned the hard way, each after getting a result backwards:
   fertilizer 0/day** — those two never recover, everything else does.
 - **Animal value per tile per day**, with `CARE` banking +1 daily:
   sheep $267 (payback 1.9d), cow $240 (1.7d), goose $100 (3.0d).
+- **Those are base prices, and base prices understate every good the town
+  drains.** Measured against realised mid-season prices instead (20 August),
+  the ordering is much sharper than the docs have assumed:
+
+  | | units/tile/day | realised | **$/tile/day** | **$/action** |
+  |---|---|---|---|---|
+  | Cow | 1.5 | $266 | **$399** | ~$100 |
+  | Sheep | 1.33 | $190 | $253 | ~$63 |
+  | Goose | 2.0 | $60 | $120 | ~$30 |
+  | Melon | 0.6 | $182 | $109 | ~$84 |
+  | Strawberry | 0.235 | $270 | $63 | ~$63 |
+  | Wheat / carrot | ~0.8 | ~$48 | $37 | ~$25 |
+
+  A cow tile is worth **six strawberry tiles**, not the 3.8x the base-price
+  figure implies, and it still wins per action even at ~4 actions a day. We
+  run twelve animal tiles against ~35 of strawberry. Scaling the herd needs
+  ranchers (`GEESE_PER_RANCHER=5`), which pushes the hire target into
+  `MAX_HANDS`, which needs land for the displaced strawberry -- the three have
+  only ever been tested one at a time, and the hiring leg of that was the void
+  measurement above.
 - **Never `FERTILIZE`.** The yield bonus is worth $25-42; the fertilizer sells
   for $60-100. It is a cash crop, not an input.
 
@@ -137,9 +168,24 @@ animals changed. Re-test knobs after structural changes.
 |---|---|
 | A **fourth** quadrant (`MAX_LAND=3`) | $12.5k vs $9.4k; loses again later |
 | Four quadrants + 10-12 hands + bigger herd | 0-24 — **but see the correction below** |
-| Hiring floor of 8 / 10 / 12 hands | 3-21, 3-21, 0-24 (mirror only) |
+| ~~Hiring floor of 8 / 10 / 12 hands~~ | ~~3-21, 3-21, 0-24~~ **— void, see below** |
 | `TILES_PER_UNIT` 6 / 10 | 1-15, 0-20 |
 | Rancher density `GEESE_PER_RANCHER` 4 / 6 | worse, 0-28 at 6 |
+
+> **Correction, 20 August: the hiring-floor row above is not evidence.**
+> `MIN_HANDS >= 8` does not produce a farm with too many hands, it produces a
+> **bankrupt farm that banks $0**. Hiring is sized with no reference to the
+> bank, so the farm pays ~$54/day through the days 0-10 window when it holds
+> ~$300 and has no income until the first melon on day 11. It is broke by day
+> 9 and never recovers: `BUY_SEED` is issued **twice in a whole game** and
+> `BUY_ANIMAL` **not at all**. Nine-plus hires also fill the 10-order market
+> queue at hours 0-1, which is what truncates the buys behind them.
+>
+> This reproduces on the pre-20-August `main.py`, so it is not something the
+> recent work introduced. It means the conclusions drawn from that row --
+> that extra hands have nothing to do, and that hands and land only pay
+> together -- rest on a measurement of a farm that had gone broke.
+> **Crew size is an open question again.**
 
 > **Correction, 18 August.** `MAX_LAND` counts *purchases*, and NW is free, so
 > our default `MAX_LAND=2` already gives **three quadrants** — the same land
@@ -284,6 +330,43 @@ routing without a tour is strictly worse than no pricing at all.
 
 The knobs are in `main.py` defaulting to 0, and the variants are kept, so this
 is re-runnable rather than re-derivable.
+
+### Crew and land, retested 20 August
+
+| Idea | Result |
+|---|---|
+| **Hire to the work and the cash that exist** (`HIRE_TO_WORK`) rather than to tiles owned | **worse**: $92.7k, $94.2k, $51.0k across three formulations, against $100.9k |
+| **The fourth quadrant** (`MAX_LAND=3`), retested at current strength | bank up against 3 opponents of 4, **0-24 in the mirror**, and **12W-0L either way** against every recorded opponent -- *not* a validated gain |
+
+Both followed from the bug above: if the hiring evidence is void, crew size
+and land are open, and they are the pair the docs say "buy each other".
+
+**Hiring to work does not work.** The crew is sized off `len(full_plot)` --
+every tile owned, whether or not anything can be done with it -- which is why
+nine hands tend twenty-one planted tiles on day 1 and idle 85%. Sizing instead
+off tiles that are actually growing or grazing, plus bare ground we hold seed
+for, loses $6.7k; adding ground we can *afford* seed for loses $50k. The
+reason is that hiring runs at hour 0-1 and the crew lasts the day, so a count
+taken in the morning under-hires for **day 11**, when the melon money lands
+and the farm plants out every bare tile at once. That day must not be slowed
+-- the same lesson bridge wheat taught. The knob is kept, defaulting to 0.
+
+**The fourth quadrant is the closest thing to a gain found all day, and it
+still does not qualify.** Against `starter` it is +$4,397 over 12 paired
+seeds. Against the recorded farms in `opponents/`, 12 games each on seeds
+2000-2011:
+
+| | `main.py` | `MAX_LAND=3` |
+|---|---|---|
+| Floth | $95,659 | **$102,728** |
+| Piotr Gabrys | $92,145 | **$94,399** |
+| Pratik Vadher | **$83,685** | $80,095 |
+
+Better against three opponents of four, worse against one. But **both builds
+go 12W-0L against all three recorded farms**, so by the ladder's own metric
+they are indistinguishable there, and coin margin buys no rating. The only
+win/loss evidence that exists is the mirror, and that is **0-24**. On the
+measure that scores, the retest is neutral-to-negative. `MAX_LAND` stays 2.
 
 ### Sell timing and the market (issue 10)
 

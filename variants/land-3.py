@@ -149,7 +149,7 @@ MIN_HANDS = _P("MIN_HANDS", 0)
 # How many quadrants to buy. Land comes straight off the final score, and the
 # third quadrant costs $4,000 -- swept at $12,502 for two against $9,405 for
 # three, so it never earns that back in the days it has left.
-MAX_LAND = _P("MAX_LAND", 2)
+MAX_LAND = _P("MAX_LAND", 3)
 LAND_CASH_BUFFER = _P("LAND_CASH_BUFFER", 300)
 
 # The herd, on the tiles nearest the shed. Sized against what the town drains

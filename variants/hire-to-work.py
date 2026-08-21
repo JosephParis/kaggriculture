@@ -133,7 +133,7 @@ MAX_HANDS = _P("MAX_HANDS", 10)
 # bankrupt, not on a farm with too many hands. It is not evidence about crew
 # size, and the conclusions drawn from it -- that extra hands have nothing to
 # do, and that hands and land only pay together -- do not follow from it.
-HIRE_TO_WORK = _P("HIRE_TO_WORK", 0)
+HIRE_TO_WORK = _P("HIRE_TO_WORK", 1)
 # Keep this much back when sizing the morning's hire, so the crew can never
 # eat the seed money. The whole farm turns on planting the premium blocks the
 # moment cash allows.
