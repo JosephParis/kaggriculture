@@ -32,12 +32,16 @@ than re-derived.
 
 | file | change from `main.py` | local h2h vs `main.py` |
 |---|---|---|
-| `sell-meter.py` | `SELL_METER=1`: premium goods sold a slice a turn | no-op, $26 on bank |
+| `sell-meter.py` | `SELL_METER=1`: premium goods sold a slice a turn | **8-16-0** |
 | `melon-switch.py` | `MELON_SWITCH=1` at threshold 180: melon ground replanted as strawberry once melon dies | **2-22-0** |
 
-Both are market-aware and both come to nothing, for opposite reasons: there is
-no glut to meter, and the one good that does crash is the one we cannot afford
-to stop growing. See TRIED.md, "Sell timing and the market".
+Both are market-aware and both lose, for opposite reasons: there is no glut to
+meter and holding stock loses the race for town demand, while the one good that
+does crash is the one we cannot afford to stop growing. See TRIED.md, "Sell
+timing and the market".
+
+`sell-meter.py` is also a worked example of why the bank is only a filter: its
+bank is within noise of the incumbent's and it still loses two games in three.
 
 ## Sparring partners
 

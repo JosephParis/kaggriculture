@@ -289,7 +289,7 @@ is re-runnable rather than re-derivable.
 
 | Idea | Result |
 |---|---|
-| **Meter the premium goods** (`SELL_METER`) -- sell `linear`/`sq` goods a slice a turn instead of dumping each wave | **no-op**: bank $107,633 -> $107,659 on one seed, same units, same prices |
+| **Meter the premium goods** (`SELL_METER`) -- sell `linear`/`sq` goods a slice a turn instead of dumping each wave | **8-16**, on a bank that barely moves ($99,851 -> $99,870) |
 | **Replant melon ground as strawberry once melon dies** (`MELON_SWITCH`) | **2-22**, while banking **+$5,254** vs `starter` |
 
 The premise of issue 10 was "dump `log` goods, meter `linear`/`sq` goods".
@@ -307,10 +307,21 @@ prices, seed 1000, against `starter`:
 
 Milk and strawberry finish the season at **1.9x and 2.5x their base price**,
 because the town drains them (19/day and 25/day) faster than two farms supply
-them. There is no glut to meter. `SELL_METER=1` does change the orders --
-wool goes from 9 orders a game to 29, median size 1 -- and moves the bank by
-$26. The knob is kept, defaulting off, because the finding is that it is not
-needed rather than that it is harmful.
+them. There is no glut to meter.
+
+**And metering is not merely unnecessary, it loses: 8W 16L over 12 paired
+games a seat**, on a bank that moves by almost nothing. This was first written
+up here as a "no-op" on the strength of the bank alone, which is exactly the
+mistake this file exists to prevent -- the bank is a filter, `h2h.py` is the
+objective, and they disagreed again.
+
+The mechanism is that **the town drain is a race, not a reservoir**. The town
+center takes one of each product every 24 turns and each shop instance one
+every 4; that demand is consumed by whoever sells into it first. Holding stock
+back to protect a price we were never going to crash just means the opponent's
+identical goods clear the same window ahead of ours. Selling immediately is
+right for *everything* -- not only for the `log` sinks and the two goods that
+never recover, which is all the original issue claimed.
 
 **This also retires the `STRATEGY.md` absorption table for sell decisions.**
 That table computes cumulative revenue into a *fresh* market with no drain,
@@ -455,14 +466,16 @@ noisy. But the public notebooks warn that a farm printing 100-170k against
    change, and it is measured against `starter`; the mirror is worth less
    still. **Self-play halves the score, so leads 3 and 4 are the bigger
    pool.** Build the tour for the h2h margin if at all, not for the bank.
-3. **Sell timing -- answered, 20 August, and there is nothing here.** The
+3. **Sell timing -- answered, 20 August, and it goes the other way.** The
    drift is real (see the price table above) but it is not ours to exploit:
    this build grows no wheat and keeps no geese, so egg and wheat are not
    what we sell. What we do sell already prices above base, because the town
-   drains milk, wool and strawberry faster than two farms supply them.
-   Metering them changes the bank by $26. The one good that genuinely
-   crashes is melon, and every attempt to spend less of the farm on melon has
-   lost the mirror.
+   drains milk, wool and strawberry faster than two farms supply them --
+   and metering those goods *loses* 8-16, because the drain is a race and
+   holding stock lets the opponent clear the window first. The one good that
+   genuinely crashes is melon, and every attempt to spend less of the farm on
+   melon has lost the mirror. **The incumbent's dump-everything-immediately
+   rule is already correct.**
 4. **Opponent modelling.** Both farms are public. Whether the opponent grows
    melon should decide whether our second cycle is worth planting.
 5. **A non-mirror evaluation.** `panel.py` exists but only the incumbent
