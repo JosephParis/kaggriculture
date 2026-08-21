@@ -264,6 +264,7 @@ DAGGER_LOG = []
 
 _POLICY = None
 _POLICY_TRIED = False
+_POLICY_WARNED = False
 
 
 def _policy():
@@ -1715,7 +1716,18 @@ def agent(obs):
             planes = _nf.encode(obs, player)
             if pol is not None:
                 board = pol.trunk(planes)
-        except Exception:
+        except Exception as exc:
+            # Falling back silently is how a stale checkpoint once looked like
+            # a perfect clone: weights trained on 41 planes met a 46-plane
+            # encoder, the load failed, the agent ran pure heuristic, and the
+            # results were byte-identical to it. Say so, once, on stderr --
+            # a submitted agent still must not die here.
+            global _POLICY_WARNED
+            if not _POLICY_WARNED:
+                _POLICY_WARNED = True
+                import sys as _s
+                print("policy disabled: %s: %s" % (type(exc).__name__, exc),
+                      file=_s.stderr)
             board, planes = None, None
 
     ops = []

@@ -131,6 +131,10 @@ def main_cli():
     ap.add_argument("--workers", type=int, default=6)
     ap.add_argument("--epochs", type=int, default=4)
     ap.add_argument("--seed", type=int, default=7000)
+    ap.add_argument("--window", type=int, default=9000,
+                    help="cap the pool at this many boards, newest kept. An "
+                         "unbounded pool makes each round slower than the "
+                         "last while adding the same information.")
     args = ap.parse_args()
 
     if args.worker:
@@ -169,6 +173,15 @@ def main_cli():
                     np.concatenate([pool[2], got[2]]),
                     np.concatenate([pool[3], got[3]]),
                     np.concatenate([pool[4], got[4]]))
+        # Sliding window: keep the newest boards. Old rounds came from a
+        # policy that no longer exists, and they are what made round N cost
+        # more than rounds 0..N-1 put together.
+        if len(pool[0]) > args.window:
+            keep = len(pool[0]) - args.window
+            m = pool[1][:, 0] >= keep
+            g = pool[1][m].copy()
+            g[:, 0] -= keep
+            pool = (pool[0][keep:], g, pool[2][m], pool[3][m], pool[4][m])
         print("   pool: %d boards, %d labelled actions"
               % (len(pool[0]), len(pool[2])))
 
@@ -185,10 +198,12 @@ def main_cli():
             Bte=pool[0], Gte=pool[1][mte], Yte=pool[2][mte], Cte=pool[3][mte],
             Tte=pool[4][mte], Mte=np.zeros((1, 2), dtype=np.float32))
 
+        prev = weights
         weights = "weights/dagger%d.npz" % it
         subprocess.run(
             [sys.executable, "train_target.py", "--data", data,
-             "--out", weights, "--epochs", str(args.epochs)],
+             "--out", weights, "--epochs", str(args.epochs)]
+            + (["--init", prev] if prev else []),
             env=dict(os.environ, PYTHONPATH="."), check=True)
 
     print("")

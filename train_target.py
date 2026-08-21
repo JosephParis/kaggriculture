@@ -113,6 +113,10 @@ def main():
     ap.add_argument("--epochs", type=int, default=6)
     ap.add_argument("--batch", type=int, default=256)
     ap.add_argument("--lr", type=float, default=2e-3)
+    ap.add_argument("--init", default=None,
+                    help="warm start from these weights; retraining from "
+                         "scratch every DAgger round is what made cost grow "
+                         "quadratically for no extra information")
     args = ap.parse_args()
 
     d = np.load(args.data)
@@ -127,6 +131,14 @@ def main():
     print("baseline 'stay put' -> %.1f%%" % (100 * stay))
 
     p = init_params(jax.random.PRNGKey(0))
+    if args.init and os.path.exists(args.init):
+        z = np.load(args.init)
+        if z["stem_w"].shape[2] == F.N_CH:
+            p = {k: jnp.asarray(z[k]) for k in z.files}
+            print("warm started from %s" % args.init)
+        else:
+            print("ignoring %s: %d channels, encoder makes %d"
+                  % (args.init, z["stem_w"].shape[2], F.N_CH))
     print("params: %d" % sum(int(np.prod(v.shape)) for v in p.values()))
     m = {k: jnp.zeros_like(v) for k, v in p.items()}
     v = {k: jnp.zeros_like(x) for k, x in p.items()}
