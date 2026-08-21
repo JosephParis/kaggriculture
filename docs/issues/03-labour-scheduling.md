@@ -110,17 +110,53 @@ tasks. A greedy one-step router cannot *spend* a value signal at all: the only
 move available to it is "walk toward the expensive thing", and the walk is the
 cost. Being value-blind is what made `URGENCY_W=0` worth 24-0.
 
+## The tour, sized
+
+`tour_ceiling.py`, 3 games, seeds 1000-1002. The workload is held fixed: for
+each unit-day it takes the tiles the unit actually stopped at and computes the
+shortest path from where it started, then compares that against the movement
+actually spent.
+
+| | per game |
+|---|---|
+| movement actually spent | 2,539 |
+| perfect-routing lower bound | 1,923 |
+| **ceiling on what any tour saves** | **616 (24.3% of movement)** |
+
+Two things fall out, and the second is the one that matters:
+
+1. **The greedy router is already within a quarter of optimal.** Fixed
+   territories, serpentine blocks and `URGENCY_W=0` took most of what the
+   geometry had to give. There is no factor-of-two hiding in the routing.
+2. **Most of the remaining saving cannot be spent.** Splitting by whether the
+   unit had any idle time that day:
+
+   | | per game | unit-days |
+   |---|---|---|
+   | savings on unit-days *with* idle | 373 | 456 |
+   | savings on unit-days with none | **243** | 260 |
+
+   A unit that walks less on a day it was already idle for just idles earlier.
+   Only the 243 are worth anything, which at ~$51 a productive action is
+   **~$12k/game against a ~$100k bank**.
+
+And 243 is an over-estimate on three counts, all of them in the tool's
+docstring: it reorders the day with hindsight a morning plan cannot have, it
+ignores the growth windows that force a tile to be visited twice, and it
+assumes every freed step turns into productive work.
+
 ## Next
 
-1. **The tour is the precondition for the price, not the reverse.** This is the
-   correction to the ordering this issue previously recorded. A per-unit,
-   per-day tour can sequence an expensive tile *with* the cheap ones on the way
-   to it, rather than choosing between them -- which is the only structure that
-   can turn a value signal into anything but extra walking. Movement is 42.8%
-   of actions, so the prize is real but bounded; size it before building it.
+1. **Do not build the tour first.** It is an L-effort change with a measured
+   ceiling of ~12% of bank against `starter`, and the mirror is worth less
+   still. Self-play halves the score, so issue 10 (sell timing) and issue 09
+   (opponent modelling) are contesting a far larger pool. If the tour does get
+   built, build it for the h2h margin -- small systematic deficits flip every
+   game in this repo -- and not for the bank.
 2. **Do not spend more effort filling the idle** until there is a use for it
-   that needs no tile. Bridge wheat showed it cannot be spent on land, and
-   priced routing showed it cannot be spent on walking. The remaining
+   that needs no tile. Bridge wheat showed it cannot be spent on land, priced
+   routing showed it cannot be spent on walking, and the sizing above shows
+   that most of the walking is not even worth removing. The remaining
    candidates are elsewhere in the backlog (issue 10, sell timing; issue 08,
    the town shops).
 

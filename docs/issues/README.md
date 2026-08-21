@@ -114,7 +114,7 @@ and put geese and melon on the good tiles".
 |---|---|---|---|
 | 15 | Rancher action budget: eggs sit at the `max_held` cap | M | **done** |
 | 14 | Endgame: liquidate by day 29, unsold inventory scores zero | S | **done** |
-| [03](03-labour-scheduling.md) | Labour scheduling: assignment across many units | L | **open — needs a tour, not a price** |
+| [03](03-labour-scheduling.md) | Labour scheduling: assignment across many units | L | **open — sized: ~$12k/game ceiling, deprioritised** |
 | 10 | Sell timing: dump `log` goods, meter `linear`/`sq` goods | M | open |
 | 09 | Opponent modelling: both farms are visible | L | open |
 
@@ -144,8 +144,10 @@ self-play says the opponent is now where the score is.
 
 ## If you only do three
 
-**03**, **10**, **09** - the cheap production wins are spent, what is left is
-the opponent, and 03 comes first because the other two feed the same router.
+**10**, **09**, **03** - the cheap production wins are spent and what is left
+is the opponent. 03 was moved to the front on 20 August and is now moved back:
+the tour it asks for has been *sized* (`tour_ceiling.py`) at a ceiling of ~$12k
+a game, over-estimated, against a shared market that halves the score.
 
 - **10 (sell timing)** because self-play still halves the score. Against
   `starter` we make $51k; against a copy of ourselves, $25k. Every remaining
@@ -169,6 +171,12 @@ the opponent, and 03 comes first because the other two feed the same router.
   47.5%, productive work down), because the only thing a one-step greedy router
   can do with a value signal is walk toward it. **The tour comes first; the
   price is only worth having once something can sequence.**
+
+  The tour was then sized rather than built. Re-routing each unit-day optimally
+  saves at most **616 movement actions/game, and 373 of those fall on days the
+  unit was already idle** — leaving ~243 spendable, about **$12k/game and
+  over-estimated**. The router is already within a quarter of optimal, so this
+  is the item that shrank, not the one to do first.
 
 Also worth knowing: **egg and wheat prices rise all season** (to ~$92 and ~$47
 by day 28) because town shops drain them faster than we supply. Nothing in the

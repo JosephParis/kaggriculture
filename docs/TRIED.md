@@ -20,13 +20,14 @@ $88.5k to $84.5k while its head-to-head went decisively up.
 
 ## How to test anything here
 
-Four tools, the first three in increasing order of trustworthiness:
+Five tools, the first three in increasing order of trustworthiness:
 
 ```
 py -3.12 eval.py   --games 12                      # bank vs starter: a filter
 py -3.12 sweep.py  KNOB=a,b,c --games 12           # paired-seed parameter grid
 py -3.12 h2h.py    cand.py --base main.py --games 12   # win rate, both seats
 py -3.12 action_stats.py --games 3                     # what the crew does all day
+py -3.12 tour_ceiling.py --games 3                     # what better routing could ever save
 ```
 
 `action_stats.py` is a tally, not a test: unit-actions by operation. Nothing in
@@ -368,6 +369,29 @@ noisy. But the public notebooks warn that a farm printing 100-170k against
    not the other way round.** A per-unit per-day tour is what can actually
    spend "that tile is worth more", by sequencing the expensive tile with the
    cheap ones on the way to it instead of choosing between them.
+
+   **And the tour has now been sized, before building it** (`tour_ceiling.py`).
+   Holding the workload fixed and re-routing each unit-day optimally:
+
+   | | per game |
+   |---|---|
+   | movement actually spent | 2,539 |
+   | perfect-routing lower bound | 1,923 |
+   | **ceiling on what any tour saves** | **616 (24.3% of movement)** |
+
+   So the greedy router is already within a quarter of optimal on geometry --
+   the territories and `URGENCY_W=0` did most of the available work. Worse,
+   **most of that saving is unspendable**: 373 of the 616 fall on unit-days
+   that *already had idle time*, where finishing the round trip sooner just
+   means passing sooner. Only 243 actions/game land on unit-days with no
+   slack at all, which at ~$51 a productive action is **~$12k/game, and that
+   is an over-estimate on three separate counts** (it reorders with hindsight,
+   it ignores growth windows, and it assumes every freed step becomes work).
+
+   Against a bank of ~$100k that is at most a 12% effect for an L-effort
+   change, and it is measured against `starter`; the mirror is worth less
+   still. **Self-play halves the score, so leads 3 and 4 are the bigger
+   pool.** Build the tour for the h2h margin if at all, not for the bank.
 3. **Sell timing.** Egg and wheat prices *rise* all season (to ~$92 and ~$47 by
    day 28) because town drain outpaces supply. Nothing exploits the drift.
 4. **Opponent modelling.** Both farms are public. Whether the opponent grows
