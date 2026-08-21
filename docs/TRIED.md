@@ -6,10 +6,15 @@ losing one. Last updated 20 August 2026.
 Read [STRATEGY.md](STRATEGY.md) first for the economics, then this for the
 record of what those economics actually bought.
 
-**Current agent: `main.py`** — 8 cows / 4 sheep, 24 melon, strawberry on 34
-tiles, **a wheat block on the ~10 tiles left over**, three quadrants, and
-units routed to the **nearest** actionable task rather than the most urgent
-one. Median **$101.4k** against `starter`, 12/12, seeds 1000..1011.
+**Current agent: `main.py`** — 6 cows / 2 sheep, 20 melon **cut at day 9**,
+strawberry 40, **6 tiles of wheat zoned ahead of melon**, three quadrants,
+nearest-task routing. Median **$94.1k** against `starter`, 12/12.
+
+Tuned against **ghosts of our own ladder submissions** rather than `starter`
+(`make_ghost.py`, `score_ghosts.py`). Against the 792- and 804-rated builds it
+scores **36 of 54** across three independent seed sets, where the build it
+replaced scores **3 of 54**. Per-turn p99 is 1.2ms against a 1000ms
+`actTimeout`.
 
 The wheat block landed 20 August and is the first change in this file accepted
 on **replay evidence** rather than a sweep: ten real losses say the farms that
@@ -346,6 +351,43 @@ routing without a tour is strictly worse than no pricing at all.
 
 The knobs are in `main.py` defaulting to 0, and the variants are kept, so this
 is re-runnable rather than re-derivable.
+
+### Tuning against our own submissions, and an intransitivity
+
+`make_ghost.py` made the 792- and 804-rated builds playable, so `optimize.py`
+was pointed at them with **games won** as the objective instead of bank. That
+found, in order: melon 24 -> 20, strawberry 34 -> 40, herd 8/4 -> 6/2,
+`MELON_LAST_PLANT` 19 -> **9**, and 6 tiles of wheat zoned *ahead* of melon.
+
+| | vs the three ghosts, 3 seed sets |
+|---|---|
+| the build this replaced | **3 / 54** |
+| current `main.py` | **36 / 54** |
+
+`MELON_LAST_PLANT=9` is the sharpest single move and **this file recorded it
+as "$8k worse"** -- true on bank against an opponent that does not contest
+melon, wrong against one that does. The 804 submission's own note reads "melon
+second cycle cut at day 9 ... 63-1 vs previous build". Bank picked the wrong
+side seven times on 20 August; here melon 24 banks $76.1k and wins 3 of 18
+while melon 20 banks $64.8k and wins 10.
+
+**But the ranking is intransitive, and that matters more than the tuning.**
+Measured head to head:
+
+- the wheat-block build beats the 18 August build **21-3**
+- the 18 August build beats this one **32-16**
+- this one and the wheat-block build are **13-11**, i.e. level
+
+A > B > C with A = C. That is not noise, it is what a shared market does: each
+build's value depends on what the other one contests. **So no single h2h is a
+ranking, and "beats `main.py`" is not the same claim as "is better".** A
+candidate has to be scored against a panel.
+
+The honest caveat on the panel used here: a ghost replays a fixed tape and
+cannot react, so some of that 36/54 is likely exploiting melon timing a live
+opponent would adjust. The ghosts are still the only way to play the builds
+that actually rate 792 and 804, and the margin over three independent seed
+sets is far too large to be seed noise.
 
 ### Reconciling this repo with the ladder submissions (20 August)
 

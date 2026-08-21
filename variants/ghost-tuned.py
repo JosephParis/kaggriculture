@@ -156,21 +156,6 @@ MIN_HANDS = _P("MIN_HANDS", 0)
 MAX_LAND = _P("MAX_LAND", 2)
 LAND_CASH_BUFFER = _P("LAND_CASH_BUFFER", 300)
 
-# Retuned 20 August against **ghosts of our own ladder submissions** rather
-# than against `starter`. `make_ghost.py` replays a submission's action tape,
-# so the 792- and 804-rated builds -- which exist nowhere but the ladder --
-# can be played directly, and the objective becomes games won against them.
-#
-# The incumbent scored **0 of 18** against those three ghosts on unseen seeds.
-# This build scores **10 of 18**, beats the incumbent **21-3** head to head,
-# and gives up $6.3k of bank against `starter` doing it. Bank has now picked
-# the wrong side seven times in one day; melon 24 banks $76.1k here against
-# melon 20's $64.8k and wins 3 of 18 against its 10.
-#
-# `MELON_LAST_PLANT=9` is the sharpest single move (+2 of 18) and this file
-# recorded it as "$8k worse" -- true on bank against an opponent that does not
-# contest melon, wrong against one that does. The 804 submission's own note
-# reads "melon second cycle cut at day 9 ... 63-1 vs previous build".
 # The herd, on the tiles nearest the shed. Sized against what the town drains
 # per day, since that is what holds the price up.
 N_SHEEP = _P("N_SHEEP", 2)
@@ -203,12 +188,7 @@ HERD_FIRST = _P("HERD_FIRST", 0)
 
 # Tiles reserved for wheat ahead of melon, nearest the shed. 0 keeps the
 # historical zoning, where wheat only ever gets leftovers.
-# Six tiles of wheat, taken ahead of melon rather than out of the leftovers.
-# Worth 10/18 -> 16/18 against the ghost panel on held-out seeds, and it holds
-# the win count while adding $10k of bank on the search seeds. More is worse
-# in the way everything is worse here: 10 tiles banks $74.7k and wins 6 of 18,
-# 16 tiles banks $76.3k and wins 2.
-WHEAT_FIRST_TILES = _P("WHEAT_FIRST_TILES", 6)
+WHEAT_FIRST_TILES = _P("WHEAT_FIRST_TILES", 0)
 GOOSE_BUY_RATE = _P("GOOSE_BUY_RATE", 3)
 # A goose needs about three days to earn its $300 back, so stop buying once
 # the season cannot pay for one.
