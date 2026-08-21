@@ -354,6 +354,53 @@ routing without a tour is strictly worse than no pricing at all.
 The knobs are in `main.py` defaulting to 0, and the variants are kept, so this
 is re-runnable rather than re-derivable.
 
+### What the losses actually look like, from logs and replays
+
+**Agent logs work, for our own seat only.** `kaggle competitions logs
+<episode> <agent_index>` returns 719 per-turn records; asking for the
+opponent's index is a legitimate 403. For submission 55637915 (804.3):
+
+| | measured on Kaggle's machines |
+|---|---|
+| per-turn duration | median **1ms**, p99 2ms, max 34ms (limit 1000ms) |
+| turns over 0.5s | **0** |
+| stderr / stdout entries | **0 / 0** |
+
+So nothing times out and nothing throws. **Technical failure is ruled out** --
+the losses are strategic, which is worth knowing given a swallowed exception
+fooled us once already.
+
+**We lose these games from in front.** `analyse_when.py` walks each loss day by
+day. Across 20:
+
+- **never behind the whole game: 0** -- we lead at some point in *every* loss
+- the lead goes at **median day 19** (range 8-28)
+- the worst single-day swings cluster on **day 11 (x5)** and **days 26-28 (x6)**
+
+**And 19 of 20 losses are melon races we lost.** First melon sale, per side:
+
+| | first melon sold | realised $/melon |
+|---|---|---|
+| our submitted builds | **day 14-15** | 57-176 |
+| the opponent | **day 10-12** | 130-241 |
+
+Melon ripens at age 10, the town drains it 1/day so the price never recovers,
+and the first seller takes ~$217 while the second takes the floor. Our best
+*submitted* builds are three to five days late to that market in almost every
+game they lose.
+
+Two caveats that matter before anyone acts on it. This is the **804-lineage**
+builds, not the agent in this repo -- `main.py` here already makes its first
+melon sale on **day 10**, so it does not share the fault. And the obvious
+lever, delivering to the shed sooner so `SELL` can see the melon, does not
+survive testing: `DROP_THRESHOLD=6` is 23-17 over 40 h2h games, which is
+inside noise, and **16/18 -> 10/18 on the ghost panel**, which the ladder has
+now validated twice. Not adopted.
+
+So the finding is real and the fix is not this one. The 804 builds lose from in
+front, on day 11, to a melon market they reach last -- and whatever gets them
+there faster is not the delivery threshold.
+
 ### Three ladder tests: bank was the liar, the mirror was not
 
 Three builds, each one mechanism away from the live 714-rated agent, chosen
