@@ -33,6 +33,7 @@ py -3.12 action_stats.py --games 3                     # what the crew does all 
 py -3.12 tour_ceiling.py --games 3                     # what better routing could ever save
 py -3.12 scan_episodes.py <submission_id>              # pull real episodes, keep the losses
 py -3.12 analyse_losses.py                             # diff our farm against the one that beat us
+py -3.12 optimize.py --games 6 --random 18             # search every acreage knob at once
 ```
 
 The last two need Kaggle auth (`py -3.12 -m kaggle auth login`) and are the
@@ -406,7 +407,49 @@ Two more things the replays turned up:
   Crops table records a day-9 melon cutoff as $8k worse. Those conflicts are
   real and unresolved: they were measured on different builds.
 
-### Solving the whole allocation at once, and why it does not work
+### Searching the whole allocation at once
+
+The acreage constants here were each fitted alone with the others held still,
+which is the wrong shape of answer when the goods share tiles, crew and
+market. Three attempts at fixing that, in order of how much they were worth:
+
+**1. A steady-state surrogate (`allocate.py`) -- failed.** Ranked known
+results backwards four times in five. Retired; see below.
+
+**2. A day-indexed surrogate (`season_model.py`) -- calibrated, still cannot
+rank.** It tracks a bank, a planting date per tile and an action budget for
+both farms against one market. Absolute bank comes out close: **mirror $85.0k
+against a real $77.9k**, 9% high. Ranking is a coin flip, **5/10** on
+`--validate`, because it over-produces melon by 48% (276 units against a
+measured 187) -- it replants melon on a clean 11-day cycle the crew never
+achieves, and melon is a race whose value is almost entirely timing. Closing
+that with a yield fudge factor would be fitting rather than modelling, so it
+was left. `py -3.12 season_model.py --validate` re-runs the check.
+
+> **Worth knowing: the "$18-25k mirror" figure in STRATEGY.md is stale.** It
+> describes the old goose build. This agent's real mirror bank is **$77,904**
+> median over 6 paired seeds. Using the old number as a calibration target
+> sent the day-indexed model chasing a value four times too low.
+
+**3. Searching the real environment (`optimize.py`) -- the trustworthy one.**
+No surrogate is needed: we own an exact model of the season and a game costs
+~35 seconds. What was missing was a search that moves every knob *together*.
+Coordinate descent over cows, sheep, melon and strawberry, on paired seeds,
+**converged immediately on the incumbent** -- `{COW 8, SHEEP 4, MELON 24,
+STRAWBERRY 34}` at $104,446, with no single-axis move improving it. So the
+one-at-a-time fitting did land on a joint local optimum, which is worth
+knowing and was not obvious.
+
+Coordinate descent cannot see a move that changes several goods at once,
+which is exactly where interaction lives, so `--random N` also samples
+allocations that move every axis simultaneously.
+
+Bank against `starter` is the search signal because it is cheap and dense.
+**It is a filter, not the objective** -- five candidates on 20 August banked
+better and lost the mirror -- so `optimize.py` prints "NOT a result yet" and
+refers the winner to `h2h.py`.
+
+### The steady-state surrogate, and why it does not work
 
 Every acreage constant here was fitted alone with the others held still --
 melon swept to 24, strawberry to 44 then 34, the herd to 8/4, wheat the
