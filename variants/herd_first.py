@@ -176,14 +176,14 @@ LAND_CASH_BUFFER = _P("LAND_CASH_BUFFER", 300)
 # The herd, on the tiles nearest the shed. Sized against what the town drains
 # per day, since that is what holds the price up.
 N_SHEEP = _P("N_SHEEP", 2)
-N_COWS = _P("N_COWS", 6)
+N_COWS = _P("N_COWS", 13)
 N_GEESE = _P("N_GEESE", 0)
 GOOSE_TARGET = N_SHEEP + N_COWS + N_GEESE  # total animal tiles
 GEESE_PER_RANCHER = _P("GEESE_PER_RANCHER", 5)
 # Geese bought before the wheat engine runs simply starve: there is no feed in
 # the shed and no cash left to buy any. Hold back enough to keep planting.
 GOOSE_CASH_BUFFER = _P("GOOSE_CASH_BUFFER", 700)
-GOOSE_START_DAY = _P("GOOSE_START_DAY", 3)
+GOOSE_START_DAY = _P("GOOSE_START_DAY", 0)
 
 # Hold the land purchases back until the herd is down.
 #
@@ -196,17 +196,17 @@ GOOSE_START_DAY = _P("GOOSE_START_DAY", 3)
 # A cow first yields eight days after placement, so ours starts milking on day
 # 19 against their day 8. The replays show the cost: they sell 273 milk a game
 # to our 146. Land cannot earn anything the herd would not have earned sooner.
-LAND_START_DAY = _P("LAND_START_DAY", 0)
+LAND_START_DAY = _P("LAND_START_DAY", 6)
 
 # Buy the herd before the land, which is the opening the 804-rated submission
 # runs. Only useful together with GOOSE_START_DAY=0 and a feed supply -- the
 # pieces do not port one at a time.
-HERD_FIRST = _P("HERD_FIRST", 0)
+HERD_FIRST = _P("HERD_FIRST", 1)
 
 # Lay the zones out over the land we plan to own rather than the land we hold
 # today, so buying a quadrant does not renumber the crop blocks underneath
 # standing plants. Required by any opening that defers land.
-PLANNED_ZONES = _P("PLANNED_ZONES", 0)
+PLANNED_ZONES = _P("PLANNED_ZONES", 1)
 
 # Tiles reserved for wheat ahead of melon, nearest the shed. 0 keeps the
 # historical zoning, where wheat only ever gets leftovers.
@@ -215,7 +215,7 @@ PLANNED_ZONES = _P("PLANNED_ZONES", 0)
 # the win count while adding $10k of bank on the search seeds. More is worse
 # in the way everything is worse here: 10 tiles banks $74.7k and wins 6 of 18,
 # 16 tiles banks $76.3k and wins 2.
-WHEAT_FIRST_TILES = _P("WHEAT_FIRST_TILES", 6)
+WHEAT_FIRST_TILES = _P("WHEAT_FIRST_TILES", 20)
 
 # How much of the opponent's visible pipeline to believe when projecting a
 # price. 1.0 takes their ground at face value and assumes they sell all of it.
@@ -319,7 +319,7 @@ FEED_CARRY = _P("FEED_CARRY", 6)
 # own harvest. Swept at 0: bought wheat costs $25-45 against the ~$20 our own
 # sells for, and it competes for the 100-item shed. Growing feed is cheaper
 # than buying it, even though a goose returns $140/day either way.
-FEED_BUY = _P("FEED_BUY", 1)
+FEED_BUY = _P("FEED_BUY", 0)
 
 # Replant melon ground as strawberry once the melon market is dead.
 #
@@ -479,7 +479,7 @@ BLOCK_ORDER = _P("BLOCK_ORDER", 1)
 # than a production problem: plant early, sell on harvest. Swept at 24, and
 # bracketed: 16 loses to it 3-21, and 30, 36 and 44 all lose to it 0-24.
 # The old value of 16 was fitted when the spare land grew wheat.
-MELON_TILES = _P("MELON_TILES", 20)
+MELON_TILES = _P("MELON_TILES", 18)
 MELON_LAST_PLANT = _P("MELON_LAST_PLANT", 9)
 
 # Tiles given to strawberry, just outside the melon block. Ongoing crop: it
@@ -508,7 +508,7 @@ MELON_LAST_PLANT = _P("MELON_LAST_PLANT", 9)
 # This is not bridge wheat, which lost 0-24. That put wheat on melon and
 # strawberry ground and desynchronised the premium blocks; this gives wheat
 # ground of its own and never touches the premium blocks' timing.
-STRAWBERRY_TILES = _P("STRAWBERRY_TILES", 40)
+STRAWBERRY_TILES = _P("STRAWBERRY_TILES", 43)
 
 # Never leave ground bare. An action tally on 20 August found crop hands idle
 # 32.5% of their actions, and tracing why showed it is not a scheduling

@@ -354,6 +354,47 @@ routing without a tour is strictly worse than no pricing at all.
 The knobs are in `main.py` defaulting to 0, and the variants are kept, so this
 is re-runnable rather than re-derivable.
 
+### Herd-first, rebuilt rather than ported: $73.6k against $95.4k
+
+The 804-rated build's whole advantage is its opening -- animals on day 0, its
+own wheat for feed, land deferred to days 6 and 8 -- and porting the pieces
+one at a time reached only $46k. Rebuilt properly it reaches **$73.6k against
+the incumbent's $95.4k**, so it is closer and still losing.
+
+**One real bug was found and fixed on the way, and it is worth keeping.**
+Zoning was built from *unlocked* tiles, so `melon_zone =
+full_plot[m0:m0+MELON_TILES]` named different physical squares the moment a
+quadrant was bought. Harmless when land is bought on day 0, because the board
+settles before anything is planted -- and ruinous for any opening that defers
+land, because zones then shift under standing crops and a tile watered as
+wheat becomes melon ground mid-cycle. `PLANNED_ZONES=1` lays the zones over
+the land we *intend* to own. It is worth $46k -> $73.6k to the herd-first
+build, and it costs the incumbent $95.4k -> $86.4k, so it defaults to 0: it is
+a prerequisite for deferred land, not a gain on its own.
+
+**What still does not work is cash sequencing, and the profile says so
+exactly.** Against the 804 target:
+
+| | rebuild | the 804 build |
+|---|---|---|
+| cows first placed | **day 12** | **day 0** |
+| 2nd / 3rd quadrant | day 11 | day 6 / day 8 |
+| strawberry / melon acreage | 19 / 5 | 43 / 18 |
+| milk sold | 190 | 273 |
+
+Thirteen cows cost $5,200 against a $3,000 opening bank, so the herd cannot go
+down at once and everything behind it stalls -- land waits for cash, the
+premium blocks never fill, and the crew never ramps. Lowering
+`GOOSE_CASH_BUFFER` to let more animals in early is worse, not better:
+$5,303 at thirteen cows, because the farm then bankrupts itself exactly the
+way `MIN_HANDS>=8` did. That buffer is load-bearing.
+
+So the remaining gap is **not** a parameterisation. The 804 build must grow its
+herd progressively against wheat income on a schedule these knobs cannot
+express, and reaching it needs the opening written as its own control flow --
+buy what this morning's cash affords, place it, let the wheat pay for the
+next -- rather than a target count and a buffer.
+
 ### Contested rollouts, and a sample-size lesson that voids the table below
 
 The table below concluded that DAgger's rollouts were "the wrong shape"
