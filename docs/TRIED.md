@@ -354,6 +354,51 @@ routing without a tour is strictly worse than no pricing at all.
 The knobs are in `main.py` defaulting to 0, and the variants are kept, so this
 is re-runnable rather than re-derivable.
 
+### DAgger: a working controller, and the seventh bank-versus-contest split
+
+The op-head clone banked $1. Predicting the **target cell** instead -- what
+the router actually chooses, and what a 10x10 spatial softmax expresses --
+fixed that, and DAgger then closed most of the remaining gap. Five
+checkpoints, 8 games each over two seed sets:
+
+| checkpoint | vs `starter` | scorer calls | vs ghost_804 | wins |
+|---|---|---|---|---|
+| heuristic | $95,648 | 0 | $79,787 | **8/8** |
+| dagger0 | $95,109 | 65,198 | $78,716 | 7/8 |
+| dagger1 | **$103,009** | 65,135 | $80,304 | 2/8 |
+| dagger2 | $98,429 | 64,850 | $67,268 | 6/8 |
+| dagger3 | $97,782 | 64,836 | $68,335 | 2/8 |
+| dagger4 | $100,951 | 64,643 | $77,060 | 5/8 |
+
+**Every row was checked for actually driving.** The scorer is consulted ~65,000
+times a batch; a zero there would mean the weights failed to load and the
+agent quietly ran pure heuristic, which is how a stale checkpoint once posted
+a flawless imitation score. `eval_checkpoints.py` prints the count for exactly
+that reason.
+
+Three readings, in order of how much they matter.
+
+**The controller works.** Cloning reached $1; this reaches parity. That was
+the actual goal of the phase -- fine-tuning needs a policy that can play, and
+$1 was not one.
+
+**Nothing beats the expert where it counts.** Several checkpoints out-bank the
+heuristic against `starter` -- dagger1 by $7,361 -- and every one of them wins
+*fewer* games against a real opponent. That is the **seventh** time in this
+repo that bank and contested outcome have disagreed, and the seventh time bank
+was the liar. DAgger converges *to* its expert by construction; it cannot
+exceed it, and the bank spread is noise plus fitting to `starter`.
+
+**The rollouts were the wrong shape.** Every DAgger iteration collected states
+from games against `starter`, so the policy learned the states an uncontested
+game visits. The ghost column is where it shows. Rolling out against
+`ghost_804` or a mirror would put the aggregation where the contested
+decisions are, and is the obvious next change if this line is continued.
+
+For fine-tuning, **dagger0 is the checkpoint to start from** -- 7/8 against
+the ghost and closest to the heuristic it cloned, rather than the higher-bank
+ones that trade contested play for it.
+
 ### Behavioural cloning: the predictor works, the controller does not
 
 Phase 1 of the cloning-then-fine-tuning plan is built and measured. The
