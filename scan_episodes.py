@@ -59,6 +59,8 @@ def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("submission")
     ap.add_argument("--limit", type=int, default=20)
+    ap.add_argument("--keep-all", action="store_true",
+                    help="keep winning replays too; cloning needs them")
     args = ap.parse_args()
 
     if not os.path.isdir(REPLAYS):
@@ -80,8 +82,10 @@ def main():
               % (ep, verdict, got["seat"], got["me"], got["them"],
                  got["opponent"]))
         rows.append((ep, verdict.strip(), got))
-        # Wins are 25MB apiece and we only ever re-read the losses.
-        if got["won"]:
+        # Wins are 25MB apiece and only the losses are re-read for analysis --
+        # but behavioural cloning wants the *winning* seat of every episode,
+        # which in a win is ours. --keep-all stops the pruning.
+        if got["won"] and not args.keep_all:
             os.remove(path)
 
     losses = [r for r in rows if r[1] == "LOSS"]

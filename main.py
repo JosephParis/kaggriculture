@@ -215,6 +215,57 @@ WHEAT_FIRST_TILES = _P("WHEAT_FIRST_TILES", 6)
 # price. 1.0 takes their ground at face value and assumes they sell all of it.
 RIVAL_WEIGHT = _P("RIVAL_WEIGHT", 1.0)
 
+# Let a cloned policy choose what each unit does, with the heuristic as the
+# fallback for anything it proposes that is not legal.
+#
+# Only unit control is learned. Hiring, land, animals, seeds and market orders
+# stay heuristic: they are a handful of decisions a turn rather than a
+# per-cell field, they are already tuned, and keeping them out leaves the
+# learned part small enough to fine-tune with self-play later.
+#
+# The policy is a 48-channel, 3-block residual CNN over the 10x10 board
+# producing per-cell action logits; each unit reads the cell it stands on.
+# One forward pass a turn serves the whole crew, in numpy, at ~3.2ms against
+# a 1000ms actTimeout.
+# 0 off. 1 = fill idle only: the policy may act only where the heuristic
+# would PASS. 2 = full override, which is what a fine-tuned policy would want.
+#
+# Mode 1 exists because mode 2 does not survive contact. A clone at 65%
+# per-action accuracy still banks **$1**: `PASS` is legal everywhere, so the
+# policy's PASS overrides a productive heuristic op, and one mistake moves the
+# agent into board states the demonstrations never contained -- the standard
+# behavioural-cloning distribution shift, compounded over 720 turns.
+#
+# Filling idle is the safe half of the same idea. Issue 03 measured 23.8% of
+# all unit-actions as PASS, worth nothing by definition, so a wrong guess
+# there costs a turn that was already being thrown away.
+LEARNED_UNITS = _P("LEARNED_UNITS", 0)
+LEARNED_WEIGHTS = os.environ.get("KAG_WEIGHTS", "weights/bc.npz")
+# Below this margin over the next-best legal op, defer to the heuristic. The
+# clone is only as good as its demonstrators, so it should not overrule a
+# tuned rule on a coin-flip.
+LEARNED_MARGIN = _P("LEARNED_MARGIN", 0.0)
+
+_POLICY = None
+_POLICY_TRIED = False
+
+
+def _policy():
+    """Load the weights once, and never let a missing file break a game."""
+    global _POLICY, _POLICY_TRIED
+    if _POLICY_TRIED:
+        return _POLICY
+    _POLICY_TRIED = True
+    if LEARNED_UNITS:
+        try:
+            import nn_features                      # noqa: F401
+            from nn_policy import Policy
+            if Policy.available(LEARNED_WEIGHTS):
+                _POLICY = Policy(LEARNED_WEIGHTS)
+        except Exception:
+            _POLICY = None                          # heuristic carries on
+    return _POLICY
+
 # Choose what to plant, and which animal to buy, from the *projected* price at
 # harvest rather than from a fixed zoning fitted once against `starter`.
 #
@@ -754,6 +805,49 @@ def _animal_rate(view, kind):
     horizon = spec.get("first_yield", 8)
     return (per_day * _projected_price(view, spec["product"], horizon)
             + _projected_price(view, "FERTILIZER", horizon))
+
+
+def _legal_op(op, tile, day, carrying, at_shed, seeds, crop, want_animal,
+              has_animal):
+    """Can this unit actually do `op` where it stands?
+
+    The policy is free to propose anything; the environment silently drops an
+    illegal action, and a silently dropped action is a wasted unit-turn. So
+    every proposal is checked against the tile before it is used, and anything
+    that fails falls through to the next-best or to the heuristic.
+    """
+    if op in ("NORTH", "SOUTH", "EAST", "WEST", "PASS"):
+        return True
+    is_plant = isinstance(tile, dict) and tile.get("kind") == "PLANT"
+    is_weed = isinstance(tile, dict) and tile.get("kind") == "WEED"
+    animal = isinstance(tile, dict) and tile.get("animal")
+    struct = isinstance(tile, dict) and tile.get("kind") in ("COOP", "PASTURE")
+
+    if op == "WATER":
+        return is_plant and not tile.get("watered_today")
+    if op == "HARVEST":
+        return (is_plant or animal) and tile.get("yield_units", 0) > 0
+    if op == "PLANT":
+        return tile is None and seeds.get(crop, 0) > 0
+    if op == "DIG":
+        return is_weed or (struct and not animal)
+    if op == "FERTILIZE":
+        return is_plant
+    if op in ("FEED", "CARE"):
+        return bool(animal)
+    if op == "COLLECT_FERTILIZER":
+        return bool(animal) and bool(tile.get("fertilizer_available"))
+    if op == "DROP":
+        return at_shed and carrying > 0
+    if op == "PICKUP":
+        return at_shed
+    if op == "PLACE":
+        return struct and not animal and has_animal
+    if op == "BUILD_COOP":
+        return tile is None and want_animal == "GOOSE"
+    if op == "BUILD_PASTURE":
+        return tile is None and want_animal in ("COW", "SHEEP")
+    return False
 
 
 def _step_toward(x, y, tx, ty):
@@ -1573,6 +1667,17 @@ def agent(obs):
             if rush:
                 break
 
+    # One forward pass a turn serves the whole crew: the policy scores every
+    # cell, and each unit reads the cell it stands on.
+    pol = _policy()
+    cell = None
+    if pol is not None:
+        try:
+            import nn_features as _nf
+            cell = pol.cell_logits(_nf.encode(obs, player))
+        except Exception:
+            cell = None
+
     ops = []
     for i, pos in enumerate(units):
         inv = inventories[i] if i < len(inventories) and isinstance(inventories[i], dict) else {}
@@ -1588,6 +1693,38 @@ def agent(obs):
             if used:
                 seeds_left[used] = seeds_left.get(used, 0) - 1
             ops.append(op)
+
+        # The policy proposes; the tile disposes. An illegal action is
+        # silently dropped by the environment, which costs the unit its turn,
+        # so anything that does not pass falls through to the next-best op and
+        # then to the heuristic already in `ops[-1]`.
+        if cell is not None and (LEARNED_UNITS > 1 or ops[-1][0] == "PASS"):
+            px, py = pos
+            tile = tiles[py][px]
+            at_shed = (px, py) in set(SHED_ACCESS)
+            zone = crop_of((px, py)) if (px, py) not in animal_zone else "WHEAT"
+            want = animal_of((px, py)) if (px, py) in animal_zone else None
+            ranked = pol.rank(cell, px, py, carried)
+            for name, score in ranked[:6]:
+                # Never spend the override on doing nothing.
+                if name == "PASS":
+                    continue
+                if not _legal_op(name, tile, day, carried, at_shed, seeds_left,
+                                 zone, want, bool(want and inv.get(want, 0))):
+                    continue
+                if name == "PLANT":
+                    ops[-1] = ["PLANT", zone]
+                    seeds_left[zone] = seeds_left.get(zone, 0) - 1
+                elif name == "PLACE":
+                    ops[-1] = ["PLACE", want]
+                elif name == "PICKUP":
+                    if wheat_in_shed <= 0:
+                        continue
+                    ops[-1] = ["PICKUP", "WHEAT",
+                               min(FEED_CARRY, wheat_in_shed)]
+                else:
+                    ops[-1] = [name]
+                break
 
     market = _market_orders(me, private, obs, full_plot, crop_plot, n_geese,
                             len(animal_zone), crop_of, placeable_by_kind,

@@ -354,6 +354,65 @@ routing without a tour is strictly worse than no pricing at all.
 The knobs are in `main.py` defaulting to 0, and the variants are kept, so this
 is re-runnable rather than re-derivable.
 
+### Behavioural cloning: the predictor works, the controller does not
+
+Phase 1 of the cloning-then-fine-tuning plan is built and measured. The
+pipeline is `nn_features.py` (board encoding, shared by training and
+inference so the two cannot drift), `nn_dataset.py` (replays -> arrays),
+`train_bc.py` (JAX, CPU) and `nn_policy.py` (numpy inference).
+
+**Scope: only unit control is learned.** Hiring, land, animals, seeds and
+market orders stay heuristic -- they are a handful of decisions a turn rather
+than a per-cell field, they are tuned, and leaving them out keeps the learned
+part small enough to fine-tune. The board is encoded once a turn into 41
+planes and each unit reads the cell it stands on, which turns a ~`20^11`
+joint action space into eleven independent 18-way choices.
+
+**As a predictor it works.** A 48-channel, 3-block residual CNN, 143k
+parameters, held out *by replay*:
+
+| | held-out accuracy |
+|---|---|
+| majority class | 16.5% |
+| linear probe, 43 hand features | 44.8% |
+| **residual CNN, 4 epochs** | **65.1%** |
+
+Numpy inference matches the JAX reference to 9.5e-06 and runs in 3.2ms a
+turn against a 1000ms budget, so deployment is not a constraint.
+
+**As a controller it fails, and the failure is the textbook one.** Handed the
+crew outright, the cloned policy banks **$1**. `PASS` is legal on every tile,
+so the policy's PASS overrides a productive heuristic op, and past that it is
+plain distribution shift: 65% per-action accuracy compounds over 720 turns,
+and the first mistake moves the agent into board states no demonstration
+contained.
+
+**The safe half is a no-op.** `LEARNED_UNITS=1` lets the policy act only where
+the heuristic would PASS -- filling idle, which is worth nothing by
+definition, so a wrong guess costs a turn already being thrown away. It does
+what it says: `PASS` goes to **zero**. It changes nothing else.
+
+| | bank vs `starter` | ghosts |
+|---|---|---|
+| heuristic | $95,424 | 8/12 |
+| idle filled by the policy | $95,424 | 8/12 |
+
+That is the **fourth** independent confirmation that this farm's idle is
+structural rather than a scheduling failure. It cannot be spent on land
+(bridge wheat, 0-24), on walking (priced routing, 4-20), on a tour (sized at
+~$12k, mostly unspendable), and now not on learned actions either.
+
+**Where that leaves fine-tuning.** The plan was clone-then-PPO, and the clone
+is not a viable starting point: fine-tuning from a policy that banks $1 is
+much closer to RL from scratch, which the feasibility work already ruled out
+on this hardware. The standard fix applies and is cheap here -- **DAgger**:
+roll the current policy out, label the states it actually visits with the
+heuristic as the oracle, retrain, repeat. Unlike the replay corpus, that data
+is unlimited (227 episodes/min) and it is drawn from the policy's own state
+distribution, which is exactly what cloning from expert-only states lacks.
+That produces a robust controller matching the heuristic, which is the
+starting point PPO needed in the first place.
+
 ### The ghost panel does not predict the ladder (21 August)
 
 Two builds tuned against ghosts came back rated **672.8** and **600** against

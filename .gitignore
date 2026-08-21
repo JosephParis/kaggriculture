@@ -38,3 +38,5 @@ DAWN-SUMMARY.md
 *_tmp.py
 optimize_cache.json
 opt_ghost_cache.json
+data/
+weights/
