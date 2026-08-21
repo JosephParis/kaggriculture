@@ -442,7 +442,28 @@ knowing and was not obvious.
 
 Coordinate descent cannot see a move that changes several goods at once,
 which is exactly where interaction lives, so `--random N` also samples
-allocations that move every axis simultaneously.
+allocations that move every axis simultaneously. **Eighteen such samples, and
+none beat it** -- the best was $99,512 against the incumbent's $104,446:
+
+| allocation | bank |
+|---|---|
+| **incumbent 8/4, melon 24, strawberry 34** | **$104,446** |
+| 4 cows / 8 sheep, melon 16, strawberry 28 | $99,512 |
+| 8/6, melon 24, strawberry 22 | $97,342 |
+| 4/8, melon 24, strawberry 40 | $94,585 |
+
+So the current allocation is a genuine local optimum in the joint space, not
+just along each axis. **The one-at-a-time fitting was the wrong method and it
+happened to land on the right point.** That is worth knowing in both
+directions: the acreage is not where the remaining score is, and the next
+person to sweep a single knob should expect to find nothing.
+
+Two caveats on that conclusion. It is a *local* optimum over the ranges in
+`AXES` -- cows 4-12, sheep 0-8, melon 16-32, strawberry 22-40 -- and the
+strawberry curve has already proved non-monotonic once, so a genuinely
+different region (no melon at all, or a herd twice this size on four
+quadrants) is not ruled out. And it is measured on bank against `starter`,
+which is the filter, not the objective.
 
 Bank against `starter` is the search signal because it is cheap and dense.
 **It is a filter, not the objective** -- five candidates on 20 August banked
