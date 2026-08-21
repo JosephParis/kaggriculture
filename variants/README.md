@@ -53,6 +53,15 @@ bank is within noise of the incumbent's and it still loses two games in three.
 Found by diffing ten real losses, not by sweeping. See TRIED.md, "What the
 replays actually said".
 
+## Portfolio (20 August)
+
+| file | change from `main.py` | result |
+|---|---|---|
+| `portfolio.py` | 12 geese / 3 cows / 2 sheep, melon 6, strawberry 13, rest wheat | **0-24-0** |
+
+The allocation `allocate.py` recommended. It loses every game, which is what
+retired the allocator -- see TRIED.md, "Solving the whole allocation at once".
+
 ## Crew and land (20 August)
 
 | file | change from `main.py` | result |

@@ -406,6 +406,48 @@ Two more things the replays turned up:
   Crops table records a day-9 melon cutoff as $8k worse. Those conflicts are
   real and unresolved: they were measured on different builds.
 
+### Solving the whole allocation at once, and why it does not work
+
+Every acreage constant here was fitted alone with the others held still --
+melon swept to 24, strawberry to 44 then 34, the herd to 8/4, wheat the
+leftovers. That is the wrong shape of answer, so `allocate.py` solves the
+portfolio directly: greedy marginal allocation over all eight goods against
+the environment's own price function, with the town drain and the opponent's
+supply priced in.
+
+**It fails retrodiction and must not be used to allocate.** Scored against six
+allocations whose head-to-head result is already known, it gets four of five
+comparisons backwards -- it ranks the 12-goose build measured at **0-24**
+*first*, and the current best *fifth of six*. Charging the feed a 20-goose
+farm would really eat moved the numbers and not the ordering. The one
+prediction it was tested on live, a diversified low-melon build, lost
+**0-24**.
+
+The reason looks structural. Everything that has decided anything in this repo
+is **temporal**: bridge wheat lost because wheat on melon ground pushed the
+premium blocks four days late, the season turns on the day-11 plant-out when
+the first melon money lands, and melon is a race where the first seller takes
+~$217 and the second takes $1. A model that multiplies units per day by a
+price has no representation of tempo, so it cannot rank builds that differ in
+it -- which is most of them.
+
+Three things it did establish, all of which stand:
+
+- **The expected town drain, derived rather than measured**, reproduces the
+  empirical table exactly: wheat 31/day, carrot and milk 19, strawberry 25,
+  tomato/egg/wool 13, melon 1, fertilizer 0. Computed from `SHOPS` and
+  `TOWN_CENTER_PRODUCTS` in about ten lines, where the original took a season
+  of tracing.
+- **The premium price curves are far steeper than this file has assumed.**
+  Milk, strawberry and melon hit the $1 floor just **200 units above
+  `MARKET_I0`**; wheat and egg are `log` with T=400 and T=332 and barely move
+  at any volume either farm can reach. That is the mechanism behind the replay
+  finding above -- staples survive a contested market and premium goods do
+  not -- and it is worth more than the allocator that produced it.
+- **Actions bind before tiles do.** The solver stops around 52 of 71 tiles,
+  which matches the farm sitting two-thirds planted and supports "actions are
+  the currency" over "buy more land".
+
 ### Crew and land, retested 20 August
 
 | Idea | Result |
