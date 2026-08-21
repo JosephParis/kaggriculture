@@ -18,6 +18,9 @@ gradient-boosted model over a feature table is the wrong shape.
 
 Read in this order:
 
+- [docs/KAGGLE_TRAINING.md](docs/KAGGLE_TRAINING.md) — runbook for training
+  on the leaders' replays with a free Kaggle GPU, since the episode index is a
+  23 GB table and this machine has no CUDA.
 - [docs/TRIED.md](docs/TRIED.md) — **start here.** Every experiment run
   against this agent and its result, so nothing gets re-tried. Also the
   testing rules, which are not obvious and have burned us.
