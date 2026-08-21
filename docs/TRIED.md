@@ -401,6 +401,62 @@ So the finding is real and the fix is not this one. The 804 builds lose from in
 front, on day 11, to a melon market they reach last -- and whatever gets them
 there faster is not the delivery threshold.
 
+### Our 804 build plays the same game every time; only the opponent varies
+
+`win_vs_loss.py` compares one build's wins against its **own** losses, which
+removes the build difference and leaves only what the games differed in.
+Eighteen episodes of 55637915 (804.3), 11W 7L:
+
+| | in wins | in losses | delta |
+|---|---|---|---|
+| **opponent's final bank** | **$64,798** | **$73,175** | **+$8,377** |
+| our first melon sale | day 14.5 | day 14.7 | +0.3 |
+| our peak herd | 15.0 | 15.0 | 0 |
+| our melon / milk / fertilizer sold | 93 / 199 / 298 | 94 / 199 / 298 | ~0 |
+
+**Every one of our own numbers is identical.** The build is deterministic in
+what it produces; whether it wins is decided by who it is drawn against. Our
+bank still swings 26% (median $72.5k) because we are a price-taker in a shared
+market -- same units produced, different prices realised.
+
+**And what the farms that beat us have is wheat.** The opponent's basket, ours
+excluded:
+
+| product | when we won | when we lost | delta |
+|---|---|---|---|
+| **WHEAT** | 354 | **848** | **+493** |
+| fertilizer | 221 | 211 | −11 |
+| strawberry | 151 | 150 | −1 |
+| milk | 156 | 137 | −19 |
+
+Everything else is flat. Wheat is the whole difference, and this build sells
+**zero** -- it grows wheat only as feed. Wheat has the largest town drain in
+the game at 31/day, a `log` curve that never crashes, and a price climbing $26
+to $51. At ~$40 realised, 848 units is ~$34,000 against a $72.5k bank.
+
+**But they are not trading strawberry for it, they are simply farming more.**
+Swapping strawberry into wheat locally reaches their volume and collapses the
+bank: wheat 44 tiles sells 897 units for **$61.4k**, against $95.8k at six
+tiles. The winners keep their strawberry *and* sell the wheat, which means
+more land and more crew, not a different mix.
+
+### The mirror punishes early investment, and the ladder says so
+
+`MAX_LAND=3 + wheat 20 + strawberry 48` banks $105k against the incumbent's
+$95.8k and loses **0-24** in the mirror and **16/18 -> 7/18** on ghosts. That
+is the same signature `MAX_LAND=3` alone carries -- and `MAX_LAND=3` is
+currently rated **742.2 against the baseline's 714.1**.
+
+The mechanism is specific and worth holding onto: in an h2h the opponent is a
+**clone that does not make the investment**, so it keeps the $4,000, out-tempos
+us through the early races, and every build that spends early reads as 0-24.
+Against a diverse field the land has thirty days to pay back. So the mirror is
+not simply wrong -- it is wrong about a *class* of change, the kind that costs
+tempo now for capacity later, and land is exactly that.
+
+`variants/land4_wheat20.py` is built and held for a ladder slot, because no
+local instrument here can rate it honestly.
+
 ### The four days are at the *planting* end, not the selling end
 
 `melon_lifecycle.py` dates every link in the chain -- planted, ripe at age 10,
