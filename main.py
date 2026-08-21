@@ -216,6 +216,22 @@ SEED_WHEAT_FIRST = _P("SEED_WHEAT_FIRST", 0)
 # 0 keeps the old behaviour of buying whatever cash allows.
 FEED_GATE_DAYS = _P("FEED_GATE_DAYS", 0)
 
+# Size each block to the land we actually hold, not to the board we will
+# eventually own.
+#
+# The blocks are constants fitted against three quadrants: fifteen animal
+# tiles, twenty wheat, eighteen melon, forty-three strawberry. That is fine
+# when land is bought on day 0. It is unworkable for an opening that defers
+# land, because NW holds about twenty-five usable tiles and those blocks want
+# ninety-six -- so the animal zone alone claims fifteen of the tiles nearest
+# the shed, eleven of them in quadrants we have not bought, and a trace of
+# days 0-5 shows three sheep sitting in the shed with only four structures
+# ever built.
+#
+# Scaling keeps each block's *share* of the farm and lets the absolute sizes
+# grow as quadrants arrive.
+ZONE_SCALE = _P("ZONE_SCALE", 0)
+
 # Tiles reserved for wheat ahead of melon, nearest the shed. 0 keeps the
 # historical zoning, where wheat only ever gets leftovers.
 # Six tiles of wheat, taken ahead of melon rather than out of the leftovers.
@@ -1627,7 +1643,29 @@ def agent(obs):
     # shed every day, so a long walk there is paid over and over.
     full_plot = (_planned_tiles(tiles, MAX_LAND) if PLANNED_ZONES
                  else _workable_tiles(tiles))
-    animal_zone = full_plot[:GOOSE_TARGET]
+
+    # How much of the plan is actually ours yet.
+    n_animal_want, n_wheat_want = GOOSE_TARGET, WHEAT_FIRST_TILES
+    n_melon_want, n_berry_want = MELON_TILES, STRAWBERRY_TILES
+    if ZONE_SCALE and full_plot:
+        held = sum(1 for (x, y) in full_plot
+                   if tiles[y][x] != "LOCKED")
+        share = max(0.0, min(1.0, held / float(len(full_plot))))
+        # Allocate out of the land we hold first. Scaling the block *sizes*
+        # alone does not help: the plan is ordered by distance from the shed,
+        # the shed is central, so the five nearest tiles were three-fifths
+        # locked and the herd had two places to stand. Unlocked tiles go to
+        # the front, locked ones queue behind for when their quadrant lands.
+        full_plot = ([xy for xy in full_plot if tiles[xy[1]][xy[0]] != "LOCKED"]
+                     + [xy for xy in full_plot
+                        if tiles[xy[1]][xy[0]] == "LOCKED"])
+        # At least two animal tiles, or the herd never starts at all.
+        n_animal_want = max(2, int(round(GOOSE_TARGET * share)))
+        n_wheat_want = int(round(WHEAT_FIRST_TILES * share))
+        n_melon_want = int(round(MELON_TILES * share))
+        n_berry_want = int(round(STRAWBERRY_TILES * share))
+
+    animal_zone = full_plot[:n_animal_want]
 
     # One market read a turn, shared by the herd and planting decisions.
     view = None
@@ -1700,11 +1738,11 @@ def agent(obs):
     # there is no money left for melon seed and wheat -- four days to harvest
     # against melon's ten -- is what pays for the season.
     w0 = len(animal_zone)
-    wheat_zone = set(full_plot[w0:w0 + WHEAT_FIRST_TILES])
-    m0 = w0 + WHEAT_FIRST_TILES
-    melon_zone = set(full_plot[m0:m0 + MELON_TILES])
-    s0 = m0 + MELON_TILES
-    berry_zone = set(full_plot[s0:s0 + STRAWBERRY_TILES])
+    wheat_zone = set(full_plot[w0:w0 + n_wheat_want])
+    m0 = w0 + n_wheat_want
+    melon_zone = set(full_plot[m0:m0 + n_melon_want])
+    s0 = m0 + n_melon_want
+    berry_zone = set(full_plot[s0:s0 + n_berry_want])
 
     def crop_of(xy):
         xy = tuple(xy)

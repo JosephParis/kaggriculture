@@ -354,6 +354,39 @@ routing without a tour is strictly worse than no pricing at all.
 The knobs are in `main.py` defaulting to 0, and the variants are kept, so this
 is re-runnable rather than re-derivable.
 
+### Herd-first: five hypotheses, stuck at $73k, and stopping
+
+Zone sizes now scale with unlocked land (`ZONE_SCALE`), and blocks allocate
+out of held ground before locked ground. Both were the fix the trace pointed
+at, and neither moves the result:
+
+| attempt | result |
+|---|---|
+| baseline herd-first | $73.6k |
+| bought feed (`FEED_BUY=1`) | $49.1k |
+| wheat seed bought first | $73.0k |
+| quadrant-first zoning | $46.3k |
+| animal purchases gated on feed | $41.1k |
+| **zone sizes scaled to held land** | **$73.1k** |
+| incumbent | **$95.4k** |
+
+The diagnosis was right as far as it went. Before scaling, the animal zone was
+five tiles with **three of them locked**, so the herd had two places to stand;
+after, it allocates from held ground first. The herd places properly and the
+farm still banks $73k.
+
+**So the placement bottleneck was real and was not the whole story**, and five
+traced hypotheses have now failed to close a $22k gap. Each one was plausible,
+each was measured, and the honest summary is that the 804 build's opening is
+not reachable by rearranging this agent's blocks and buy queue -- something
+about how it sequences the first five days is structurally different in a way
+the traces have not yet isolated.
+
+All six knobs default to 0 and the incumbent is untouched at $95,344 over 12
+paired seeds. `trace_opening.py` is the tool that got furthest and is where a
+sixth attempt should start: it reads unit-actions a day, which is the layer
+where four money-based hypotheses were invisible.
+
 ### Herd-first, traced properly: the herd is bought and never placed
 
 `trace_opening.py` tallies unit-actions a day for the opening and prints the
