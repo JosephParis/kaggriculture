@@ -40,8 +40,11 @@ and price function are readable. Prefer reading it over probing.
 ## Rules
 
 - **Submissions run through `submit.py`, which refuses more often than it
-  sends.** The manual-only rule was relaxed on 21 August; the pre-flight is
-  what replaced the human. It checks that the file parses and exposes
+  sends.** The manual-only rule was relaxed on 21 August and the owner granted
+  **standing permission to submit any subsequent build** -- no per-submission
+  confirmation needed. The pre-flight is what replaced the human, so it is the
+  only thing standing between a broken agent and a wasted slot; weaken it and
+  there is nothing left. It checks that the file parses and exposes
   `agent()`, that it imports nothing outside the standard library (a submitted
   agent runs without this repo, so a stray `import main` passes locally and
   fails there), that it plays a full 720-turn game without crashing and banks
