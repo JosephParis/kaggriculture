@@ -354,6 +354,71 @@ routing without a tour is strictly worse than no pricing at all.
 The knobs are in `main.py` defaulting to 0, and the variants are kept, so this
 is re-runnable rather than re-derivable.
 
+### The ghost panel does not predict the ladder (21 August)
+
+Two builds tuned against ghosts came back rated **672.8** and **600** against
+the hand-built lineage's **801.7** and **804.3**. The panel said they were
+better by a wide margin; the ladder says they are much worse.
+
+The reason is the caveat that was recorded when the panel was built and should
+have been weighted harder: **a ghost replays a fixed tape and cannot react**,
+so tuning against one rewards exploiting fixed behaviour -- melon timing above
+all -- and a live opponent adjusts. Two compounding errors: the tuning was
+also applied to the 18 August lineage, which rates 581-628, so it was
+polishing the weaker of the two architectures in the repo.
+
+**Ghost win rate is a filter, like bank was.** It is still the only way to
+play a submission whose source is gone, and it is still worth running -- but
+"36/54 against the ghosts" is not a claim about the ladder, and this file
+should not have implied it was.
+
+### Reinforcement learning: assessed, and not the first move
+
+Measured on this machine on 21 August, since the question is entirely about
+budget rather than about whether the method works in principle:
+
+| | measured |
+|---|---|
+| env, one worker | 356 steps/s |
+| env, ten workers | 2,720 steps/s (227 episodes/min, ~235M steps/day) |
+| joint action space | ~`20^11` = 2x10^14 per turn |
+| labelled pairs per replay | **13,814**, both seats, 16 distinct ops |
+| available across 12 submissions | ~6.6M pairs |
+| hardware | ARM64, 12 cores, **no CUDA**, JAX on CPU, no torch |
+| inference budget used | 1.3ms of 1000ms |
+
+Rollouts are not the bottleneck; the gradient work is. PPO runs that reach
+strong play on comparable games (Lux AI, Halite) spend 10^8-10^9 steps *with*
+GPUs. **From-scratch RL is not viable here** in the time left.
+
+**Behavioural cloning is viable, and was probed rather than assumed.**
+`bc_probe.py` fits a plain multinomial logistic regression on 43 cheap
+per-unit features, held out *by replay*:
+
+| | held-out accuracy |
+|---|---|
+| majority class (`WEST`) | 15.8% |
+| linear model | **44.8%** |
+| its `WATER` recall | 89.4% |
+| its `SOUTH` recall | 27.8% |
+
+A linear model nearly triples the baseline, and the split across classes is
+the useful part: productive acts are predictable from local state, movement is
+not, because a direction encodes a *destination* a board-wide encoder could
+see and local features cannot. There is real headroom.
+
+**But cloning cannot exceed its demonstrations**, and ours are opponents rated
+600-800, not the leaders at ~3190. So it is a tool for a specific job --
+recovering the 804 build whose source is gone, and mining what beat us -- not
+a strategy.
+
+**The first move is not machine learning.** The largest measured gap is that
+the 804 build places animals on **day 0** and this one cannot place a cow
+until melon money lands on **day 11**; a cow yields eight days after
+placement, so ours milks from day 19 against their day 8, which is the whole
+of the 146-vs-273 milk gap. That spec is already recovered by
+`profile_build.py`. Full write-up: the RL feasibility report artifact.
+
 ### Reading the market: a forecast, and what it is worth (21 August)
 
 Everything above this point is a farm that decides its whole season on day 0.
