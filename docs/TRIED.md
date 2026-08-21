@@ -354,6 +354,34 @@ routing without a tour is strictly worse than no pricing at all.
 The knobs are in `main.py` defaulting to 0, and the variants are kept, so this
 is re-runnable rather than re-derivable.
 
+### Three ladder tests: bank was the liar, the mirror was not
+
+Three builds, each one mechanism away from the live 714-rated agent, chosen
+where local scoring said "no" and the 804-rated build said "yes".
+
+| test | change | local verdict | **ladder** |
+|---|---|---|---|
+| baseline | adaptive herd | -- | **714.1** |
+| A | wheat 20, strawberry 26 | ghosts: worse, 6/18 vs 11/18 | **628.9** |
+| B | `MAX_LAND=3` | bank +$4,397, mirror 0-24 | **646.7** |
+| C | 13 cows | sweeps: worse than 6-8, every time | pending |
+
+**Both settled tests confirmed the local verdict**, and B is the important
+one: bank said buy the quadrant, the mirror said 0-24, and the ladder says
+646.7 against 714.1. The mirror was right.
+
+That corrects a claim this file has been making all day. "Local evaluation
+disagreed with the ladder seven times" is too broad and is wrong as stated --
+it was **bank against `starter`** that disagreed, every time. The mirror and
+the ghost panel have now been checked against the ladder twice and were right
+twice. Bank is the instrument to distrust; `h2h.py` is not.
+
+The one place the ghost panel genuinely did mislead was when it was **tuned
+against** -- optimising a build to beat three fixed tapes produced 705.5 and
+714.1 against the hand-built lineage's 801.7 and 804.3. Reading a ghost is
+sound; fitting to one is not, which is the ordinary overfitting distinction
+and not a fault of the measure.
+
 ### The waste audit: the farm is not leaking, and that closes a direction
 
 Bug-hunting has been the cheap way to find gains here and strategy work the
