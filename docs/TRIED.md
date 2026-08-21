@@ -401,6 +401,48 @@ So the finding is real and the fix is not this one. The 804 builds lose from in
 front, on day 11, to a melon market they reach last -- and whatever gets them
 there faster is not the delivery threshold.
 
+### Training on the leaders' replays, on Kaggle's hardware
+
+Cloning has a hard ceiling at the demonstrator, and ours were our own
+heuristic and opponents rated 600-800. The leaders rate ~3,150. Two things
+have to change to imitate them instead, and neither is a modelling problem.
+
+**Finding their episodes.** Episode ids are global across every Kaggle
+simulation, so sampling ids blindly pulls Card Battle about fifteen times in
+sixteen, and there is no API from a leaderboard team to their episodes. Meta
+Kaggle publishes the mapping -- `EpisodeAgents.csv` (23.1 GB) has one row per
+agent per episode with the rating it held, and `Episodes.csv` (6.8 GB) has the
+competition. Together they give the episode ids of any rating band. Thirty
+gigabytes is impractical to download here and **attaches to a Kaggle Notebook
+with no download at all**.
+
+**Somewhere with a GPU.** This box is ARM64, 12 CPU cores, no CUDA. Kaggle
+Notebooks give a T4 (often two) for 30 hours a week, free, and the data is
+already sitting there.
+
+`kaggle_train_notebook.py` is written to be pasted into such a notebook. It
+identifies the competition by looking up episode ids we already know rather
+than hardcoding one, ranks submissions by the peak rating they held, pulls the
+winning episodes of the top agents, builds the same target-cell dataset the
+local pipeline uses, and runs `train_target.py` unchanged -- JAX takes the GPU
+by itself. It writes `weights/leader.npz`, which `main.py` loads through
+`KAG_WEIGHTS` exactly like the DAgger weights.
+
+**Why this is a better bet than it looks.** The strong farms are
+*deterministic* -- Ryan Hancock plays two games with every crop identical to
+the tile. A deterministic demonstrator is the easy case for imitation, one
+right answer per state rather than a distribution, and it is why the local
+DAgger run reached parity with its expert at all. The same machinery pointed
+at a 3,150-rated demonstrator has a ceiling 2,400 rating points higher than
+the one it has been fitting.
+
+**And what it cannot fix.** Cloning reproduces a policy, not an understanding;
+it will not exceed the leaders, and the local run showed a clone is only as
+robust as the states it was shown, which is what DAgger existed to patch. On
+Kaggle that patch is unavailable -- there is no expert to query on states a
+leader never visited -- so expect the leaders' own state distribution to be
+the limit.
+
 ### The strong farms do not adapt either -- they run better fixed plans
 
 Our 804 build plays the same game every time. The obvious question is whether
