@@ -200,6 +200,13 @@ URGENCY_W = _P("URGENCY_W", 0)
 #   1 = serpentine rows, which keeps consecutive tiles genuinely adjacent.
 BLOCK_ORDER = _P("BLOCK_ORDER", 1)
 
+
+# Let an idle unit do the other role's work instead of passing.
+# Territories are fixed for the day, so a unit whose own zone has nothing
+# actionable stands still: the herd needs far fewer actions than its ranchers
+# have, and melon and strawberry leave a crop block dormant for days at a time.
+CROSS_HELP = _P("CROSS_HELP", 0)
+
 # Tiles given over to melon, taken just outside the animal zone. The market
 # pays $21,721 for the first 100 melons and almost nothing past 150, and the
 # town drains only one a day, so this is a race against the opponent rather
@@ -786,16 +793,34 @@ def agent(obs):
     for i, pos in enumerate(units):
         inv = inventories[i] if i < len(inventories) and isinstance(inventories[i], dict) else {}
         carried = sum(inv.values())
+        hurry = rush and inv.get("MELON", 0) > 0
+        used = None
         if i < n_ranchers:
-            ops.append(_rancher_op(tiles, pos, rancher_blocks[i], day, hour, inv,
-                                   carried, shed, wheat_in_shed, animal_of, rush and inv.get("MELON", 0) > 0))
+            op = _rancher_op(tiles, pos, rancher_blocks[i], day, hour, inv,
+                             carried, shed, wheat_in_shed, animal_of, hurry)
+            # A rancher whose herd is fed, cared for and harvested has nothing
+            # left in its zone and used to PASS for the rest of the turn.
+            if CROSS_HELP and op == ["PASS"]:
+                alt, used = _farmhand_op(tiles, pos, crop_plot, crop_plot, day,
+                                         hour, carried, seeds_left, crop_of, hurry)
+                if alt == ["PASS"]:
+                    used = None
+                else:
+                    op = alt
         else:
             block = crop_blocks[i - n_ranchers] if n_crop_units else []
             op, used = _farmhand_op(tiles, pos, block, crop_plot, day, hour,
-                                    carried, seeds_left, crop_of, rush and inv.get("MELON", 0) > 0)
-            if used:
-                seeds_left[used] = seeds_left.get(used, 0) - 1
-            ops.append(op)
+                                    carried, seeds_left, crop_of, hurry)
+            # The reverse case: melon and strawberry hold a tile for ten days,
+            # so mid-season the whole crop plot can be planted and watered.
+            if CROSS_HELP and op == ["PASS"]:
+                alt = _rancher_op(tiles, pos, animal_zone, day, hour, inv,
+                                  carried, shed, wheat_in_shed, animal_of, hurry)
+                if alt != ["PASS"]:
+                    op = alt
+        if used:
+            seeds_left[used] = seeds_left.get(used, 0) - 1
+        ops.append(op)
 
     market = _market_orders(me, private, obs, full_plot, crop_plot, n_geese,
                             len(animal_zone), crop_of, placeable_by_kind)
