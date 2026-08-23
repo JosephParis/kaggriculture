@@ -427,9 +427,14 @@ the data, silently.
 
 **The result.** 149 replays from the top 20 teams (rated 3125.7 down to
 2748.3) gave 54,360 boards and 526,876 labelled unit-targets. Target accuracy
-reached **61.2%** against a 50.5% "stay put" baseline, bouncing in a 60-62%
-band from epoch 3 on while training loss kept falling 1.16 -> 0.53. That shape
-is overfitting, not saturation.
+was reported as **61.2%** against a 50.5% "stay put" baseline, flat in a
+60-62% band from epoch 3 while training loss fell 1.16 -> 0.53.
+
+**That reading was a measurement artifact** -- see the correction directly
+below. `train_target.py`'s `evaluate` scores the first 6,000 rows of the test
+split, which is one or two games. Over 40,000 random test rows the same
+weights score **75.7%**, and the flat band belonged to the head slice, not to
+the model. The panel result below is unaffected: it never used accuracy.
 
 On the ghost panel the clone scores **39/48 where the current build scores
 42/48**, and banks less against nearly every ghost -- $76.1k -> $71.8k on
@@ -448,6 +453,42 @@ training runs.
 replay -- is the reusable part, and it obsoletes the Meta Kaggle route whatever
 happens to cloning. `build_leader_pool.py` reduces replays to the target-cell
 pool with the per-seat bug fixed. Both live in the repo root.
+
+### `evaluate` scores 6,000 contiguous rows, so "target acc" is one or two games (23 August)
+
+`train_target.py`'s `evaluate(p, B, G, T, cap=6000)` takes the **first** 6,000
+rows of the test split. The rows are ordered by board, and a replay yields
+~3,500 labelled targets, so every "target acc" this repo has printed is the
+accuracy on roughly **one or two games** -- whichever two happen to sit at the
+90% boundary.
+
+It surfaced when a retrain on 2.85x the data reported 85.2% after one epoch
+where the previous run reported 58.0%. The jump was not the model:
+
+| weights (12 epochs, reported 61.2%) | head-6000 | 40,000 random rows |
+| ----------------------------------- | --------- | ------------------ |
+| on the 149-replay split             | 59.8%     | **75.7%**          |
+| on the 428-replay split             | 83.5%     | **76.2%**          |
+
+The same weights score ~76% on both splits. The head slice reads 59.8% on one
+and 83.5% on the other, a 24-point swing from nothing but which games are at
+the boundary. Two consequences:
+
+* **Accuracy numbers are not comparable across datasets**, and the DAgger
+  entries below quote this statistic too. Their *relative* movement within one
+  run and one split is still meaningful, since the slice is held fixed there.
+* **The "overfitting" reading was wrong.** Training loss falling while the
+  head-6000 accuracy sat flat at 60-62% looked like overfitting; measured
+  properly the model was at ~76% and the flat band was an artifact. The case
+  for pulling 3x the data rested on that reading and should not have.
+
+Fixing it means sampling the split rather than slicing it -- a random subset at
+a fixed seed, so runs stay comparable to each other without being pinned to two
+games. `honest_eval.py` does this over any pool and any weights file.
+
+**What this does not touch.** The ghost panel never used accuracy: 39/48
+against 42/48 is measured in games won and money banked, and stands as
+recorded.
 
 ### Training on the leaders' replays, on Kaggle's hardware
 
