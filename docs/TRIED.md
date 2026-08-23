@@ -1,7 +1,7 @@
 # What has been tried
 
 A log of every experiment run against this agent, kept so nobody re-runs a
-losing one. Last updated 18 August 2026.
+losing one. Last updated 23 August 2026.
 
 Read [STRATEGY.md](STRATEGY.md) first for the economics, then this for the
 record of what those economics actually bought.
@@ -125,6 +125,8 @@ animals changed. Re-test knobs after structural changes.
 | Hiring floor of 8 / 10 / 12 hands | 3-21, 3-21, 0-24 (mirror only) |
 | `TILES_PER_UNIT` 6 / 10 | 1-15, 0-20 |
 | Rancher density `GEESE_PER_RANCHER` 4 / 6 | worse, 0-28 at 6 |
+| **Cross-role help for idle units** | **6-14 / 3-21 / 2-22**, see below |
+| Cross-role help capped to a radius of 1, 2, 3, 4 | 8-8-8, 8-8-8, 7-13, 6-14 |
 
 > **Correction, 18 August.** `MAX_LAND` counts *purchases*, and NW is free, so
 > our default `MAX_LAND=2` already gives **three quadrants** — the same land
@@ -134,6 +136,21 @@ animals changed. Re-test knobs after structural changes.
 > leaders' advantage is routing rather than configuration — is not supported
 > by it.
 
+> **Idle actions are not spare capacity (23 August).** Roughly a quarter of
+> unit-actions do nothing (measured on the `dawn/2026-08-20` branch, which is
+> not merged, so the tally is not reproducible from here), because territories are fixed for the day and a
+> rancher with a fed, cared-for, harvested herd has no fallback at all. Letting
+> an idle unit do the other role's work loses at every setting, and the shape
+> is the point: the margin improves monotonically as the distance it will walk
+> shrinks, and the family only reaches parity (8-8-8) at radius 1-2, where it
+> has stopped doing anything. Hands helping the herd is the worst variant at
+> 3-21. The reading is that a rancher's idle turns are slack held against the
+> feeding peak -- an animal that misses a second day is gone with its price --
+> so being in the wrong place costs more than the extra crop work returns.
+> This is the same thing `GEESE_PER_RANCHER=6` said when cutting rancher count
+> lost 0-28. Knobs kept in `main.py` as `CROSS_HELP` / `CROSS_HELP_RADIUS`,
+> defaulted off.
+>
 > A second arithmetic error ran through all of the above: much of this work
 > assumed 46 workable tiles, i.e. two quadrants. The real figure with three
 > quadrants is ~71. **We own 75 tiles and a traced game uses 14 of them.**
@@ -223,6 +240,11 @@ noisy. But the public notebooks warn that a farm printing 100-170k against
    tour per unit per day is the next structure, and it is what would make three
    quadrants and 12 hands pay. Re-measure the movement share first; the 65%
    figure predates this change.
+   The cheap version of this -- handing idle units the other role's work -- was
+   tried on 23 August and rejected (see Structural above). What is left is
+   genuinely the hard version: a per-unit tour planned for the whole day, which
+   can keep a unit near its herd *and* pick up crop work on the way, rather than
+   choosing between the two one turn at a time.
 3. **Sell timing.** Egg and wheat prices *rise* all season (to ~$92 and ~$47 by
    day 28) because town drain outpaces supply. Nothing exploits the drift.
 4. **Opponent modelling.** Both farms are public. Whether the opponent grows

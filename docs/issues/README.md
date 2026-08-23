@@ -115,6 +115,12 @@ and put geese and melon on the good tiles".
 | 15 | Rancher action budget: eggs sit at the `max_held` cap | M | **done** |
 | 14 | Endgame: liquidate by day 29, unsold inventory scores zero | S | **done** |
 | [03](03-labour-scheduling.md) | Labour scheduling: assignment across many units | L | **open — half done** |
+
+> **03, 23 August.** Cross-role help for idle units — a rancher whose herd is
+> done doing crop work, and the reverse — was tried and **rejected** at every
+> setting (6-14, 3-21, 2-22; capped to radius 1-4 it only reaches 8-8-8). The
+> idle turns are slack held against the feeding peak. See
+> [TRIED.md](../TRIED.md). What is left of 03 is the per-unit day tour.
 | 10 | Sell timing: dump `log` goods, meter `linear`/`sq` goods | M | open |
 | 09 | Opponent modelling: both farms are visible | L | open |
 
@@ -154,6 +160,9 @@ is the opponent.
   farms are public. Knowing whether the opponent is growing melon decides
   whether our second melon cycle is worth planting at all.
 - **03 (labour scheduling)** because movement still dominates unit-actions.
+  Note the cheap version is now closed off: filling idle turns with the other
+  role's work loses (23 August), so the win has to come from planning a unit's
+  day, not from re-targeting it one turn at a time.
   Territories and a distance tiebreak got it from 72% to ~65%, and choosing the
   nearest task over the most urgent one (`URGENCY_W=0`, 18 August) was worth
   24-0 head to head — but the agent still takes one greedy step per unit per
