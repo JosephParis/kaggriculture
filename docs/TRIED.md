@@ -1,14 +1,16 @@
 # What has been tried
 
 A log of every experiment run against this agent, kept so nobody re-runs a
-losing one. Last updated 20 August 2026.
+losing one. Last updated 23 August 2026.
 
 Read [STRATEGY.md](STRATEGY.md) first for the economics, then this for the
 record of what those economics actually bought.
 
 **Current agent: `main.py`** — 6 cows / 2 sheep, 20 melon **cut at day 9**,
 strawberry 40, **6 tiles of wheat zoned ahead of melon**, three quadrants,
-nearest-task routing. Median **$94.1k** against `starter`, 12/12.
+nearest-task routing, and ranchers fetching **four** feed a trip. Median
+**$94.1k** against `starter`, 12/12 — measured *before* `FEED_CARRY` landed on
+23 August, so it is due a re-run.
 
 Tuned against **ghosts of our own ladder submissions** rather than `starter`
 (`make_ghost.py`, `score_ghosts.py`). Against the 792- and 804-rated builds it
@@ -176,6 +178,7 @@ Five rules learned the hard way, each after getting a result backwards:
 | 17 | Melon 16 → 24 tiles | 25-7 h2h, bracketed by 16 and 30 |
 | 18 | `URGENCY_W=0`: nearest task first, urgency only breaks ties | **24-0 h2h**, $83.0k → $99.9k |
 | 19 | Strawberry 44 → 34, giving wheat a block of its own | **21-3 h2h**, +$3,422 |
+| 20 | `FEED_CARRY` 6 → **4** | **19-5 h2h on two seed sets** — but swept on the pre-wheat-block herd, see below |
 
 **Note on 9:** feed buying was correctly rejected for the goose farm and
 correctly accepted for the cow/sheep farm. The same knob flipped sign when the
@@ -194,6 +197,27 @@ animals changed. Re-test knobs after structural changes.
 | ~~Hiring floor of 8 / 10 / 12 hands~~ | ~~3-21, 3-21, 0-24~~ **— void, see below** |
 | `TILES_PER_UNIT` 6 / 10 | 1-15, 0-20 |
 | Rancher density `GEESE_PER_RANCHER` 4 / 6 | worse, 0-28 at 6 |
+| **Cross-role help for idle units** | **6-14 / 3-21 / 2-22** |
+| Cross-role help capped to a radius of 1, 2, 3, 4 | 8-8-8, 8-8-8, 7-13, 6-14 |
+
+> **Idle actions are not spare capacity (23 August).** Roughly a quarter of
+> unit-actions do nothing, because territories are fixed for the day and a
+> rancher with a fed, cared-for, harvested herd has no fallback at all. Letting
+> an idle unit do the other role's work loses at every setting, and the shape is
+> the point: the margin improves monotonically as the distance it will walk
+> shrinks, and the family only reaches parity (8-8-8) at radius 1-2, where it
+> has stopped doing anything. Hands helping the herd is the worst variant at
+> 3-21. The reading is that a rancher's idle turns are slack held against the
+> feeding peak — an animal that misses a second day is gone and takes its
+> purchase price with it — so being in the wrong place costs more than the extra
+> crop work returns. This is the same thing `GEESE_PER_RANCHER=6` said when
+> cutting rancher count lost 0-28.
+>
+> The `CROSS_HELP` / `CROSS_HELP_RADIUS` knobs were **not** carried over from
+> `dawn/2026-08-23`. They were written against the pre-scorer `_rancher_op` /
+> `_farmhand_op` signatures and do not fit the learned-policy router; since the
+> sweep rejected them outright, they are recorded here rather than kept as dead
+> policy. The branch has them if anyone wants to re-run the sweep.
 
 > **Correction, 20 August: the hiring-floor row above is not evidence.**
 > `MIN_HANDS >= 8` does not produce a farm with too many hands, it produces a
@@ -1669,7 +1693,7 @@ the 3-day interval interacting with `max_held`.
 |---|---|
 | Daily flush (deliver from hour 18/21) | much worse; walking beats the ~49 units saved |
 | `DROP_THRESHOLD` 5 / 8 | 14 stays best |
-| `FEED_CARRY` 14 | far worse — it exceeds `DROP_THRESHOLD`, so a unit picks up feed and immediately turns round to deliver it |
+| `FEED_CARRY` 14 / 10 / 8 / 5 | far worse, 3-21, 9-15, 11-13 — **4 is the optimum** (23 August), and 3 and 2 both go 1-23. 14 exceeds `DROP_THRESHOLD`, so a unit picks up feed and immediately turns round to deliver it |
 | **Front-run the opponent's melon dump** | **0-24**, and 2-22 even when gated to units carrying melon |
 | `CARE_ENABLED=0` | 0-20 — CARE is essential despite looking free on bank |
 | `GOOSE_CASH_BUFFER` 300 | 6-14 |

@@ -121,6 +121,19 @@ and put geese and melon on the good tiles".
 | 10 | Sell timing: dump `log` goods, meter `linear`/`sq` goods | M | **closed — the premise is wrong; dump everything** |
 | 09 | Opponent modelling: both farms are visible | L | **partly done — worth ~1 game in 18** |
 
+> **03, 23 August.** Cross-role help for idle units — a rancher whose herd is
+> done doing crop work, and the reverse — was tried and **rejected** at every
+> setting (6-14, 3-21, 2-22; capped to radius 1-4 it only reaches 8-8-8). The
+> idle turns are slack held against the feeding peak. See
+> [TRIED.md](../TRIED.md). What is left of 03 is the per-unit day tour.
+>
+> The same day's consolation prize came from taking the rejection seriously: if
+> a rancher's worth is being in place for the feeding peak, the size of a feed
+> trip decides whether it is — `FEED_CARRY` 6 → 4 was worth **19-5** on two
+> seed sets. That sweep ran on the pre-wheat-block herd (8 cows / 4 sheep, 24
+> melon), so the constant is in but **the baseline above predates it** and both
+> want re-measuring on the current build.
+
 ### P2 — margins
 
 | # | Issue | Effort | Status |
@@ -174,6 +187,13 @@ a game, over-estimated, against a shared market that halves the score.
   mis-scheduled it, but because holding melon tiles under a wheat cycle
   de-synchronised the melon block, and melon is a race into a market that never
   recovers. See TRIED.md; the idle is real and still unspent.
+
+  The *cheap* way to spend it is now closed off too: handing idle units the
+  other role's work was swept on 23 August and lost at every setting, best case
+  a parity 8-8-8 reached only by shrinking the help radius until it did nothing.
+  So the win has to come from planning a unit's day — a tour that keeps it near
+  its herd *and* picks up crop work on the way — not from re-targeting it one
+  turn at a time.
 
   The follow-up that issue then proposed — **priced routing**, scoring tasks by
   `value / (dist + 1)` — was built and **lost 4-20**, banking more against
