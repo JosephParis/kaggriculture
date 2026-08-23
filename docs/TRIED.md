@@ -478,6 +478,37 @@ replay -- is the reusable part, and it obsoletes the Meta Kaggle route whatever
 happens to cloning. `build_leader_pool.py` reduces replays to the target-cell
 pool with the per-seat bug fixed. Both live in the repo root.
 
+**Retrained on 2.85x the data, and it is still not better (23 August).** 428
+replays, 25 per team from the same top 20, streamed through `stream_pull.py`
+so the 13 GB of raw JSON never sat on disk: 154,800 boards and 1,500,038
+labelled targets, six epochs. Fidelity measured over 40,000 random test rows,
+on 43 episodes that no run trained on:
+
+| weights                | fidelity  | panel     |
+| ---------------------- | --------- | --------- |
+| no policy (`main.py`)  | --        | **42/48** |
+| 149 replays, 12 epochs | 76.2%     | 39/48     |
+| 428 replays, 3 epochs  | 80.3%     | --        |
+| 428 replays, 6 epochs  | **81.6%** | 41/48     |
+
+More data is worth having: fidelity rose monotonically and the panel gap
+closed from -3 to -1. But 5.4 points of fidelity bought two games, the clone
+still does not beat the heuristic it replaces, and 41 against 42 is inside the
+noise that the sample-size entry below warns about either way.
+
+**Why the fidelity does not convert.** An 81.6% copy of a 3,125-rated player
+ought to demolish ghosts of our own 800-rated builds, and it does not. The
+entries below say why: the strong farms *do not adapt, they run better fixed
+plans*, and their edge is **strawberry volume and crop mix** -- decisions about
+what to plant and how much, made once. This policy predicts a target cell for
+a unit. It can copy where a leader sends a farmer and still miss the plan that
+made the destination worth visiting, and no amount of routing fidelity
+recovers a plan-level choice the representation cannot express.
+
+That is the ceiling to argue with next, if this direction is revisited: clone
+the *plan* -- crop mix, volume, timing -- not the routing. Cloning the routing
+is now measured twice and is not it.
+
 ### `evaluate` scores 6,000 contiguous rows, so "target acc" is one or two games (23 August)
 
 `train_target.py`'s `evaluate(p, B, G, T, cap=6000)` takes the **first** 6,000
