@@ -338,7 +338,13 @@ LAST_GOOSE_DAY = _P("LAST_GOOSE_DAY", 24)
 # Wheat held back per goose so feeding never fails. An unfed goose still lays,
 # but two consecutive unfed days and it escapes for good.
 FEED_RESERVE_PER_GOOSE = _P("FEED_RESERVE_PER_GOOSE", 3)
-FEED_CARRY = _P("FEED_CARRY", 6)
+# How much feed a rancher fetches per shed trip. Swept 23 August and the curve
+# is a spike, not a slope: 4 beats 6 by 19-5 on two independent seed sets, 5
+# and 8 lose by a little, and 3 and 10 lose by a lot (1-23 and 3-21). Carrying
+# more means fewer trips but a unit loitering at the shed with feed nobody
+# needs yet; carrying less than 4 means a rancher runs dry mid-round and walks
+# the whole way back while an animal is on its second unfed day.
+FEED_CARRY = _P("FEED_CARRY", 4)
 # Whether to top the feed reserve up from the market rather than relying on our
 # own harvest. Swept at 0: bought wheat costs $25-45 against the ~$20 our own
 # sells for, and it competes for the 100-item shed. Growing feed is cheaper
