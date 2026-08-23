@@ -205,7 +205,15 @@ BLOCK_ORDER = _P("BLOCK_ORDER", 1)
 # Territories are fixed for the day, so a unit whose own zone has nothing
 # actionable stands still: the herd needs far fewer actions than its ranchers
 # have, and melon and strawberry leave a crop block dormant for days at a time.
+# Bit 1: a rancher helps with crops. Bit 2: a hand helps with the herd.
+# Swept and rejected, 23 August: 1 loses 6-14, 2 loses 3-21, 3 loses 2-22.
+# Kept off, and kept here, so the result stays reproducible.
 CROSS_HELP = _P("CROSS_HELP", 0)
+# How far an idle unit will walk to help. The margin improves monotonically as
+# this shrinks -- 99 and 4 lose by 8, 3 by 6, and 2 and 1 only draw level --
+# which says the idle actions are not free. A rancher that crosses the farm to
+# water something is on the wrong side of it when an animal goes unfed.
+CROSS_HELP_RADIUS = _P("CROSS_HELP_RADIUS", 99)
 
 # Tiles given over to melon, taken just outside the animal zone. The market
 # pays $21,721 for the first 100 melons and almost nothing past 150, and the
@@ -800,8 +808,10 @@ def agent(obs):
                              carried, shed, wheat_in_shed, animal_of, hurry)
             # A rancher whose herd is fed, cared for and harvested has nothing
             # left in its zone and used to PASS for the rest of the turn.
-            if CROSS_HELP and op == ["PASS"]:
-                alt, used = _farmhand_op(tiles, pos, crop_plot, crop_plot, day,
+            if CROSS_HELP & 1 and op == ["PASS"]:
+                near = [t for t in crop_plot
+                        if abs(t[0] - pos[0]) + abs(t[1] - pos[1]) <= CROSS_HELP_RADIUS]
+                alt, used = _farmhand_op(tiles, pos, near, near, day,
                                          hour, carried, seeds_left, crop_of, hurry)
                 if alt == ["PASS"]:
                     used = None
@@ -813,8 +823,10 @@ def agent(obs):
                                     carried, seeds_left, crop_of, hurry)
             # The reverse case: melon and strawberry hold a tile for ten days,
             # so mid-season the whole crop plot can be planted and watered.
-            if CROSS_HELP and op == ["PASS"]:
-                alt = _rancher_op(tiles, pos, animal_zone, day, hour, inv,
+            if CROSS_HELP & 2 and op == ["PASS"]:
+                near = [t for t in animal_zone
+                        if abs(t[0] - pos[0]) + abs(t[1] - pos[1]) <= CROSS_HELP_RADIUS]
+                alt = _rancher_op(tiles, pos, near, day, hour, inv,
                                   carried, shed, wheat_in_shed, animal_of, hurry)
                 if alt != ["PASS"]:
                     op = alt
