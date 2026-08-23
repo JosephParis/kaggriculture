@@ -7,10 +7,10 @@ Read [STRATEGY.md](STRATEGY.md) first for the economics, then this for the
 record of what those economics actually bought.
 
 **Current agent: `main.py`** — 8 cows / 4 sheep, 24 melon, strawberry on all
-remaining land, **no wheat** (feed is bought), three quadrants, and units
-routed to the **nearest** actionable task rather than the most urgent one.
-Median $99.9k against `starter`, 12/12. Beats the previous build 24-0 head to
-head, both seats.
+remaining land, **no wheat** (feed is bought), three quadrants, units routed to
+the **nearest** actionable task rather than the most urgent one, and ranchers
+fetching four feed a trip. Median $101.7k against `starter`, 12/12. Beats the
+previous build 19-5 head to head, both seats, on two independent seed sets.
 
 Bank against `starter` is a filter, not the objective — the ladder scores
 win/loss/tie. The build before this one went the other way: its bank fell from
@@ -107,6 +107,7 @@ Five rules learned the hard way, each after getting a result backwards:
 | 16 | Strawberry on every tile the herd and melon do not use | $74.7k → $88.5k |
 | 17 | Melon 16 → 24 tiles | 25-7 h2h, bracketed by 16 and 30 |
 | 18 | `URGENCY_W=0`: nearest task first, urgency only breaks ties | **24-0 h2h**, $83.0k → $99.9k |
+| 19 | `FEED_CARRY` 6 → **4** | **19-5 h2h on two seed sets**, $99.9k → $101.7k |
 
 **Note on 9:** feed buying was correctly rejected for the goose farm and
 correctly accepted for the cow/sheep farm. The same knob flipped sign when the
@@ -191,7 +192,7 @@ the 3-day interval interacting with `max_held`.
 |---|---|
 | Daily flush (deliver from hour 18/21) | much worse; walking beats the ~49 units saved |
 | `DROP_THRESHOLD` 5 / 8 | 14 stays best |
-| `FEED_CARRY` 14 | far worse — it exceeds `DROP_THRESHOLD`, so a unit picks up feed and immediately turns round to deliver it |
+| `FEED_CARRY` 14 / 10 / 8 / 5 | far worse, 3-21, 9-15, 11-13 — **4 is the optimum**, and 3 and 2 both go 1-23 |
 | **Front-run the opponent's melon dump** | **0-24**, and 2-22 even when gated to units carrying melon |
 | `CARE_ENABLED=0` | 0-20 — CARE is essential despite looking free on bank |
 | `GOOSE_CASH_BUFFER` 300 | 6-14 |
@@ -245,6 +246,11 @@ noisy. But the public notebooks warn that a farm printing 100-170k against
    genuinely the hard version: a per-unit tour planned for the whole day, which
    can keep a unit near its herd *and* pick up crop work on the way, rather than
    choosing between the two one turn at a time.
+   A partial consolation from the same day: `FEED_CARRY` 6 -> 4 is worth 19-5,
+   which is a routing win in disguise. The rejection above says a rancher's
+   value is being in the right place at the feeding peak; this says the same
+   thing from the other side, that the size of a feed trip is what decides
+   whether it is.
 3. **Sell timing.** Egg and wheat prices *rise* all season (to ~$92 and ~$47 by
    day 28) because town drain outpaces supply. Nothing exploits the drift.
 4. **Opponent modelling.** Both farms are public. Whether the opponent grows

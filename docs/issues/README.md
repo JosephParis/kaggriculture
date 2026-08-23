@@ -80,7 +80,7 @@ the ordering below assumed.
 | [07](07-livestock.md) | Livestock: the goose/egg/fertilizer engine | L | **done** |
 | [04](04-melon.md) | Crop mix: melon for the premium slice | M | **done** |
 
-**Current baseline: 100% vs `starter`, median $99,851 over 12 paired games
+**Current baseline: 100% vs `starter`, median $101,689 over 12 paired games
 (seeds 1000..1011).** Beat that number or it is a regression.
 `py -3.12 eval.py --games 12 --seed 1000`. Note `eval.py` seeds randomly unless
 `--seed` is given, so two runs without it are not comparable.
@@ -123,6 +123,9 @@ and put geese and melon on the good tiles".
 > setting (6-14, 3-21, 2-22; capped to radius 1-4 it only reaches 8-8-8). The
 > idle turns are slack held against the feeding peak. See
 > [TRIED.md](../TRIED.md). What is left of 03 is the per-unit day tour.
+> The same day's consolation prize came from taking the rejection seriously:
+> if a rancher's worth is being in place for the feeding peak, the size of a
+> feed trip decides whether it is — `FEED_CARRY` 6 → 4 is worth **19-5**.
 
 ### P2 — margins
 
