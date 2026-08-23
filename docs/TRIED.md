@@ -401,6 +401,54 @@ So the finding is real and the fix is not this one. The 804 builds lose from in
 front, on day 11, to a melon market they reach last -- and whatever gets them
 there faster is not the delivery threshold.
 
+### Cloning the leaders: the data was easy, the clone was worse (23 August)
+
+The plan below was executed. Two of its three premises were wrong before any
+modelling question arose.
+
+**There is an API from a leaderboard team to its episodes.** Kaggle CLI 2.2.4
+has `competitions team-submissions <team_id>` and `competitions episodes
+<submission_id>`; chained off `competitions leaderboard --show` they give the
+episode ids of any rated team directly. The top submission listed 196
+completed episodes. Meta Kaggle's 23 GB `EpisodeAgents.csv` is not needed, and
+neither is a notebook to hold it.
+
+**And this box is not the box described.** It is AMD64, 16 cores, with an RTX
+3070 Ti and CUDA 13.1 -- the "ARM64, no CUDA" reading came from a CPU-only
+`jax` wheel. Twelve epochs on 526k labels took 50 minutes on the CPU alone, so
+no GPU was needed either. Nothing was run on Kaggle and no quota was spent.
+
+**One bug in `kaggle_train_notebook.py`, which would have run on Kaggle too.**
+`nn_features.encode` reads `obs["private"]` for the five seed and shed
+channels, and `private` is per-player. The script read
+`steps[i][0]["observation"]` for both seats, so every seat-1 board would have
+carried player 0's seeds and shed -- five of forty-six channels wrong on half
+the data, silently.
+
+**The result.** 149 replays from the top 20 teams (rated 3125.7 down to
+2748.3) gave 54,360 boards and 526,876 labelled unit-targets. Target accuracy
+reached **61.2%** against a 50.5% "stay put" baseline, bouncing in a 60-62%
+band from epoch 3 on while training loss kept falling 1.16 -> 0.53. That shape
+is overfitting, not saturation.
+
+On the ghost panel the clone scores **39/48 where the current build scores
+42/48**, and banks less against nearly every ghost -- $76.1k -> $71.8k on
+`ghost_792`, $80.3k -> $77.0k on `pratik_vadher`, $89.1k -> $85.9k on
+`piotr_gabrys`. The losses land exactly on the competitive ghosts, our own 792
+and 804b builds, while the blowouts stay blowouts. **A partly-copied policy is
+worse than a coherent heuristic**, and 61% agreement is not enough fidelity to
+reproduce a 3,125-rated one. Not submitted.
+
+This is the ceiling argument in the plan below arriving early rather than at
+the leaders' rating: a clone is only as robust as the states it was shown, and
+DAgger's patch for that is unavailable against replays no matter where the
+training runs.
+
+`fetch_leaders.py` -- leaderboard -> team -> best submission -> episodes ->
+replay -- is the reusable part, and it obsoletes the Meta Kaggle route whatever
+happens to cloning. `build_leader_pool.py` reduces replays to the target-cell
+pool with the per-seat bug fixed. Both live in the repo root.
+
 ### Training on the leaders' replays, on Kaggle's hardware
 
 Cloning has a hard ceiling at the demonstrator, and ours were our own
