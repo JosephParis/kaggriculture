@@ -67,6 +67,12 @@ CROP_SPEC = {
     # price holds despite a curve that would otherwise floor it by unit 60.
     "STRAWBERRY": {"seed": 100, "harvest_age": 10, "window": (99, 0),
                    "ongoing": True, "units": 4, "actions": 13},
+    # Carrot is wheat with the numbers moved one notch in each direction:
+    # `max_yield_day` 3 against wheat's 4, so the bonus window is ages 2-3 and
+    # a finished tile carries 2 units rather than 3, off a cycle one day
+    # shorter and a seed costing twice as much.
+    "CARROT": {"seed": 20, "harvest_age": 3, "window": (2, 3),
+               "units": 2, "actions": 6},
 }
 WHEAT_SEED_COST = CROP_SPEC["WHEAT"]["seed"]
 WHEAT_MAX_YIELD_DAY = CROP_SPEC["WHEAT"]["harvest_age"]
@@ -491,6 +497,9 @@ UNIT_VALUE = {
     "MELON": _P("V_MELON", 217),
     "STRAWBERRY": _P("V_STRAWBERRY", 120),
     "WHEAT": _P("V_WHEAT", 21),
+    # Base 35, discounted by the same 0.84 that prices wheat at 21 against
+    # its base of 25, so the two staples stay comparable to the router.
+    "CARROT": _P("V_CARROT", 29),
     "MILK": _P("V_MILK", 160),
     "WOOL": _P("V_WOOL", 200),
     "EGG": _P("V_EGG", 50),
@@ -539,6 +548,18 @@ MELON_LAST_PLANT = _P("MELON_LAST_PLANT", 9)
 # strawberry ground and desynchronised the premium blocks; this gives wheat
 # ground of its own and never touches the premium blocks' timing.
 STRAWBERRY_TILES = _P("STRAWBERRY_TILES", 40)
+
+# Tiles given to carrot, taken off the residual ground that otherwise falls
+# back to wheat. This is the follow-up TRIED.md nominated after the wheat
+# block: the farms that beat us sell 32 carrot a game to our zero, the town
+# drains it, and its glut curve is `sqrt` rather than melon's `sq`.
+#
+# The arithmetic was written down before the measurement. Per tile-day a
+# wheat tile nets `0.75 * P_wheat - 2.50` and a carrot tile
+# `0.67 * P_carrot - 6.67`, so carrot needs `P_carrot > 1.125 * P_wheat +
+# 6.25` merely to draw -- about $51 when wheat is at $40. Carrot measures
+# $35 -> $48 across a season, so it starts behind and stays there.
+CARROT_TILES = _P("CARROT_TILES", 0)
 
 # Never leave ground bare. An action tally on 20 August found crop hands idle
 # 32.5% of their actions, and tracing why showed it is not a scheduling
@@ -1607,7 +1628,7 @@ def _market_orders(me, private, obs, full_plot, crop_plot, n_geese, n_animal_til
             money -= want * WHEAT_SEED_COST
 
     stranded = 0  # bare tiles whose zoned crop is unaffordable or out of time
-    for crop in ("MELON", "STRAWBERRY"):
+    for crop in ("MELON", "STRAWBERRY", "CARROT"):
         bare = sum(1 for xy in crop_plot
                    if me["tiles"][xy[1]][xy[0]] is None and zoned(xy) == crop)
         bridgeable = BRIDGE_MELON or crop != "MELON"
@@ -1764,6 +1785,9 @@ def agent(obs):
     melon_zone = set(full_plot[m0:m0 + n_melon_want])
     s0 = m0 + n_melon_want
     berry_zone = set(full_plot[s0:s0 + n_berry_want])
+    # Carrot takes the residual, ahead of the wheat that would default to it.
+    c0 = s0 + n_berry_want
+    carrot_zone = set(full_plot[c0:c0 + CARROT_TILES]) if CARROT_TILES else set()
 
     def crop_of(xy):
         xy = tuple(xy)
@@ -1773,12 +1797,14 @@ def agent(obs):
             return "MELON"
         if xy in berry_zone:
             return "STRAWBERRY"
+        if xy in carrot_zone:
+            return "CARROT"
         return "WHEAT"
 
     n_crop_units = max(0, n_units - n_ranchers)
     crop_plot = full_plot[len(animal_zone):][: TILES_PER_UNIT * max(1, n_crop_units)]
     # Never leave melon ground unworked: it outearns wheat many times over.
-    for xy in wheat_zone | melon_zone | berry_zone:
+    for xy in wheat_zone | melon_zone | berry_zone | carrot_zone:
         if xy not in crop_plot:
             crop_plot.append(xy)
 
