@@ -257,11 +257,98 @@ animals changed. Re-test knobs after structural changes.
 | Melon planting cutoff day 13 | tied (submitted as v5) |
 | ~~Strawberry~~ | **Wrong — now accepted at 44 tiles.** 8 and 14 do lose; the curve is not monotonic and 16+ wins big |
 | Geese at any count | superseded by cows/sheep |
+| **Carrot on a block of its own** (`CARROT_TILES=10`) | **0-24 and 1-23** vs `main.py`, and **4-20** against the same block sown with wheat |
 
 The strawberry row above was wrong for a long time and is kept as a warning.
 Four units off one planting is only 0.24/tile/day, which is what the original
 reasoning fixated on — but it is still nearly double a wheat tile, and once
 feed is bought there is nothing better to do with the land.
+
+
+### Carrot: the lead was arithmetic, and the arithmetic was already against it
+
+This is the follow-up the replay analysis nominated — "next pass should look
+at *carrot* on the same grounds — the field sells 32 a game to our zero, the
+town drains it 19/day, and its curve is `sqrt`". It is now closed.
+
+**The premise was wrong twice.**
+
+*The drain figure is an upper bound, not an observation.* Shops unlock one
+every four days from an 8-way draw with replacement, capped at 8 instances,
+and each instance consumes every product it wants once per 4-hour tick.
+Carrot is wanted by `PET_CAFE` (single-product, so double) and
+`FARMERS_MARKET`; wheat by five of the eight shops. "19/day" is what carrot
+would drain with all 8 instances unlocked, which a 30-day season never
+reaches. Measured over a real game: **carrot drained 5.8/day against wheat's
+22/day.**
+
+*And the per-tile arithmetic never favoured carrot.* From the environment
+source, `max_yield_day` is 3 for carrot against wheat's 4, so the watering
+bonus window is ages 2-3 rather than 2-4 and a finished tile carries **2**
+units rather than 3, off a seed costing **twice** as much:
+
+| per tile-day | units | seed | net |
+|---|---|---|---|
+| wheat | 3 over 4 days = 0.75 | $10 | `0.75 * P_wheat - 2.50` |
+| carrot | 2 over 3 days = 0.67 | $20 | `0.67 * P_carrot - 6.67` |
+
+So carrot needs `P_carrot > 1.125 * P_wheat + 6.25` — about **$51** with
+wheat at $40 — merely to draw. Measured across a season carrot runs $35 →
+$48 while wheat runs $25 → $50, so it never gets there. Carrot is also four
+times more price-sensitive to our own supply: below `I0` its curve is a
+`hinge` at $0.078 a unit against wheat's `sqrt` at $0.020.
+
+That was written down **before** the measurement, and the measurement agreed:
+
+| | vs `main.py` seed 4000 | vs `main.py` seed 7000 |
+|---|---|---|
+| carrot block, 10 tiles | **0-24** | **1-23** |
+
+And against the same ten tiles sown with wheat instead, which isolates the
+crop from the block: **4-20**. Both blocks lose to the incumbent, and carrot
+loses to wheat inside the losing block. `CARROT_TILES` stays in `main.py` at
+0, along with the `CROP_SPEC` and `UNIT_VALUE` entries, because the crop is
+now plumbed and the next person to wonder can flip a knob.
+
+**There is also no residual ground to give it.** The first attempt zoned
+carrot after the strawberry block and it changed the game not at all:
+`main.py` runs animals 8 + melon 20 + strawberry 40 against 72 workable
+tiles, so the leftover is **4 tiles** and they only exist from day 11. The
+6-16 wheat tiles a trace shows are not a zone — they are the ranchers
+planting feed. Any block for a new crop has to be taken off strawberry.
+
+### Strawberry 34 vs 40: the ghost-tuned value wins the mirror after all
+
+Worth recording because it looks like it should have gone the other way.
+Accepted change #19 cut strawberry 44 → 34 on replay evidence, 21-3. The
+next commit — ghost tuning, later discredited for the ladder — moved it to
+**40**, and nobody re-tested the two against each other afterwards.
+
+On the current build, strawberry 34 loses to strawberry 40 **5-19**. So the
+ghost-tuned value survives a mirror test even though the ghost panel does not
+predict the ladder. It does not follow that 40 is right — the ranking here is
+intransitive and no single h2h is a ranking — only that the 34 in the accepted
+table is not what `main.py` runs and has no live evidence behind it.
+
+### The headline baseline does not reproduce (24 August)
+
+`docs/issues/README.md` carried **"median $101,402 over 12 paired games
+(seeds 1000..1011)"** as the number to beat. Re-measured on the current
+`main.py`:
+
+| build | median vs `starter`, seeds 1000..1011 |
+|---|---|
+| `main.py` | **$94,902** (min $83,079, max $102,910) |
+| `main.py` with `FEED_CARRY=6` | $94,976 |
+| strawberry 34 (the build #19 describes) | $93,497 |
+
+The open question next to that number was whether `FEED_CARRY` 6 → 4 had
+moved it. It had not — the two are $74 apart on twelve paired seeds, which is
+nothing, and `FEED_CARRY` was accepted on h2h rather than bank anyway. Nor is
+it the strawberry 34 → 40 change. **$101,402 does not reproduce on any build
+in the repo**, so it belongs to some intermediate state between 20 and 21
+August and should not be used as the regression gate: everything measured
+against it looks like a regression by ~$6.5k before it starts.
 
 ### Land use
 
@@ -1740,6 +1827,16 @@ noisy. But the public notebooks warn that a farm printing 100-170k against
    grounds -- the field sells 32 a game to our zero, the town drains it
    19/day, and its curve is `sqrt` -- and at the herd-first opening the
    19-20 August submissions describe.
+
+   **Carrot was that next pass, and it is closed, 24 August.** It loses 0-24
+   and 1-23 on two seed sets, and 4-20 against the same block sown with wheat.
+   Both premises behind the lead were wrong: the 19/day drain is an
+   all-shops-unlocked upper bound a season never reaches (a real game measured
+   5.8/day), and carrot carries 2 units off a 3-day cycle against wheat's 3
+   off 4, on a seed costing twice as much, so it needs ~$51 a unit to draw
+   with wheat and tops out at $48. See the Crops section. **The herd-first
+   half of this lead is still open**, though it has its own five-hypothesis
+   post-mortem above.
 2. **Routing — partly banked, 18 August.** Task choice used to be strictly
    lexicographic on urgency, so a unit walked across its block to the most
    urgent tile and past everything else. Scoring `tier * URGENCY_W + dist` and
