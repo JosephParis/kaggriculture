@@ -175,9 +175,9 @@ Five rules learned the hard way, each after getting a result backwards:
 | 14 | Seed spend against a running balance | latent; three crops emptied day 0 |
 | 15 | 8 cows / 4 sheep | beat 6/6 by 15-1 head to head |
 | 16 | Strawberry on every tile the herd and melon do not use | $74.7k → $88.5k |
-| 17 | Melon 16 → 24 tiles | 25-7 h2h, bracketed by 16 and 30 |
+| 17 | ~~Melon 16 → 24 tiles~~ | 25-7 h2h then — **but `main.py` runs 20, and 24 now loses to it 0-24** |
 | 18 | `URGENCY_W=0`: nearest task first, urgency only breaks ties | **24-0 h2h**, $83.0k → $99.9k |
-| 19 | Strawberry 44 → 34, giving wheat a block of its own | **21-3 h2h**, +$3,422 |
+| 19 | ~~Strawberry 44 → 34, giving wheat a block of its own~~ | 21-3 h2h then — **but `main.py` runs 40, and 34 now loses to it 5-19** |
 | 20 | `FEED_CARRY` 6 → **4** | **19-5 h2h on two seed sets** — but swept on the pre-wheat-block herd, see below |
 
 **Note on 9:** feed buying was correctly rejected for the goose farm and
@@ -317,18 +317,35 @@ tiles, so the leftover is **4 tiles** and they only exist from day 11. The
 6-16 wheat tiles a trace shows are not a zone — they are the ranchers
 planting feed. Any block for a new crop has to be taken off strawberry.
 
-### Strawberry 34 vs 40: the ghost-tuned value wins the mirror after all
+### The ghost-tuned crop mix wins the mirror, on both knobs (24 August)
 
 Worth recording because it looks like it should have gone the other way.
 Accepted change #19 cut strawberry 44 → 34 on replay evidence, 21-3. The
 next commit — ghost tuning, later discredited for the ladder — moved it to
 **40**, and nobody re-tested the two against each other afterwards.
 
-On the current build, strawberry 34 loses to strawberry 40 **5-19**. So the
-ghost-tuned value survives a mirror test even though the ghost panel does not
-predict the ladder. It does not follow that 40 is right — the ranking here is
-intransitive and no single h2h is a ranking — only that the 34 in the accepted
-table is not what `main.py` runs and has no live evidence behind it.
+The same is true of melon. Accepted change #17 raised melon 16 → 24, 25-7;
+the ghost-tuning commit cut it to **20**. Neither was retested afterwards.
+Both, measured against the current `main.py` over 12 paired games a seat:
+
+| candidate | vs `main.py` |
+|---|---|
+| strawberry 34 (accepted #19) | **5-19** |
+| melon 24 (accepted #17) | **0-24** |
+| strawberry 44 (the ground's ceiling) | 3-3-18, **tied** |
+
+So both values ghost tuning moved survive a mirror test, even though the
+ghost panel does not predict the ladder — and the two rows in the accepted
+table above describe a build the repo has not run since 20 August. They are
+struck through now.
+
+It does not follow that 20/40 is *right*: the ranking here is intransitive
+and no single h2h is a ranking. What does follow is that the crop mix is at
+a local optimum in the mirror and is not where the next win is. Strawberry
+is also **out of ground** — 44 is everything left after 8 animal and 20
+melon tiles out of 72 workable, and it ties, with 18 of 24 games identical.
+More strawberry acreage now needs a fourth quadrant or a smaller herd, both
+of which have their own 0-24 entries above.
 
 ### The headline baseline does not reproduce (24 August)
 
