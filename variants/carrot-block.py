@@ -1,4 +1,6 @@
-"""
+"""VARIANT: strawberry 40 -> 34, and the freed block goes to carrot rather than wheat.
+
+
 Kaggriculture agent: buy labour, buy land, run geese, grow wheat to feed them.
 
 The single-farmer wheat baseline scored ~$6,000. What was missing:
@@ -547,7 +549,7 @@ MELON_LAST_PLANT = _P("MELON_LAST_PLANT", 9)
 # This is not bridge wheat, which lost 0-24. That put wheat on melon and
 # strawberry ground and desynchronised the premium blocks; this gives wheat
 # ground of its own and never touches the premium blocks' timing.
-STRAWBERRY_TILES = _P("STRAWBERRY_TILES", 40)
+STRAWBERRY_TILES = _P("STRAWBERRY_TILES", 34)
 
 # Tiles given to carrot, taken off the residual ground that otherwise falls
 # back to wheat. This is the follow-up TRIED.md nominated after the wheat
@@ -559,7 +561,7 @@ STRAWBERRY_TILES = _P("STRAWBERRY_TILES", 40)
 # `0.67 * P_carrot - 6.67`, so carrot needs `P_carrot > 1.125 * P_wheat +
 # 6.25` merely to draw -- about $51 when wheat is at $40. Carrot measures
 # $35 -> $48 across a season, so it starts behind and stays there.
-CARROT_TILES = _P("CARROT_TILES", 0)
+CARROT_TILES = _P("CARROT_TILES", 10)
 
 # Never leave ground bare. An action tally on 20 August found crop hands idle
 # 32.5% of their actions, and tracing why showed it is not a scheduling

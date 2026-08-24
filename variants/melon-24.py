@@ -1,4 +1,6 @@
-"""
+"""VARIANT: melon 20 -> 24, the value the replay evidence picked before ghost tuning cut it.
+
+
 Kaggriculture agent: buy labour, buy land, run geese, grow wheat to feed them.
 
 The single-farmer wheat baseline scored ~$6,000. What was missing:
@@ -518,7 +520,7 @@ BLOCK_ORDER = _P("BLOCK_ORDER", 1)
 # than a production problem: plant early, sell on harvest. Swept at 24, and
 # bracketed: 16 loses to it 3-21, and 30, 36 and 44 all lose to it 0-24.
 # The old value of 16 was fitted when the spare land grew wheat.
-MELON_TILES = _P("MELON_TILES", 20)
+MELON_TILES = _P("MELON_TILES", 24)
 MELON_LAST_PLANT = _P("MELON_LAST_PLANT", 9)
 
 # Tiles given to strawberry, just outside the melon block. Ongoing crop: it

@@ -82,11 +82,24 @@ the ordering below assumed.
 | [07](07-livestock.md) | Livestock: the goose/egg/fertilizer engine | L | **done** |
 | [04](04-melon.md) | Crop mix: melon for the premium slice | M | **done** |
 
-**Current baseline: 100% vs `starter`, median $101,402 over 12 paired games
-(seeds 1000..1011).** Beat that number or it is a regression. Moved 20 August
-by the wheat block (strawberry 44 -> 34), which is 21-3 head to head.
-`py -3.12 eval.py --games 12 --seed 1000`. Note `eval.py` seeds randomly unless
-`--seed` is given, so two runs without it are not comparable.
+**Current baseline: 100% vs `starter`, median $94,902 over 12 paired games
+(seeds 1000..1011), min $83,079, max $102,910.** Beat that number or it is a
+regression. `py -3.12 eval.py --games 12 --seed 1000`. Note `eval.py` seeds
+randomly unless `--seed` is given, so two runs without it are not comparable.
+
+> **Re-measured 24 August, and the old figure was wrong.** This line read
+> $101,402 and carried an open question about whether `FEED_CARRY` 6 -> 4 had
+> moved it. It had not: `FEED_CARRY=6` measures $94,976 against 4's $94,902 on
+> the same twelve seeds, $74 apart. Nor is it the strawberry 34 -> 40 change,
+> which measures $93,497. **$101,402 does not reproduce on any build in the
+> repo** -- it belongs to some intermediate state between 20 and 21 August. It
+> was a bad gate to leave standing, because every candidate measured against
+> it started ~$6.5k in the hole. See [TRIED.md](../TRIED.md).
+>
+> Note also that the sentence this replaces credited the move to the wheat
+> block (strawberry 44 -> 34, 21-3). `main.py` has not run strawberry 34 since
+> the ghost-tuning commit the following day put it at 40, and 34 now loses to
+> 40 **5-19** head to head.
 
 Where it came from:
 

@@ -1,4 +1,6 @@
-"""
+"""VARIANT: strawberry 40 -> 44, the ceiling the ground allows (72 workable - 8 animal - 20 melon).
+
+
 Kaggriculture agent: buy labour, buy land, run geese, grow wheat to feed them.
 
 The single-farmer wheat baseline scored ~$6,000. What was missing:
@@ -547,7 +549,7 @@ MELON_LAST_PLANT = _P("MELON_LAST_PLANT", 9)
 # This is not bridge wheat, which lost 0-24. That put wheat on melon and
 # strawberry ground and desynchronised the premium blocks; this gives wheat
 # ground of its own and never touches the premium blocks' timing.
-STRAWBERRY_TILES = _P("STRAWBERRY_TILES", 40)
+STRAWBERRY_TILES = _P("STRAWBERRY_TILES", 44)
 
 # Tiles given to carrot, taken off the residual ground that otherwise falls
 # back to wheat. This is the follow-up TRIED.md nominated after the wheat

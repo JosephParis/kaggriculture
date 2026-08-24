@@ -77,6 +77,10 @@ retired the allocator -- see TRIED.md, "Solving the whole allocation at once".
 |---|---|---|
 | `hire-to-work.py` | `HIRE_TO_WORK=1`: crew sized off work and cash, not tiles owned | worse, $94.2k vs $100.9k |
 | `land-3.py` | `MAX_LAND=3`: buy the fourth quadrant | **0-24** mirror; 12W-0L either way vs recorded farms |
+| `carrot-block.py` | strawberry 40 -> 34, and the freed block sown with carrot (`CARROT_TILES=10`) | **0-24** and **1-23** on two seed sets; **4-20** against the same block sown with wheat |
+| `wheat-block-restored.py` | strawberry 40 -> 34, restoring the wheat block ghost tuning reverted | **5-19** vs `main.py` |
+| `berry-44.py` | `STRAWBERRY_TILES=44`, the ceiling the ground allows | 3-3-18, tied — 18 of 24 games identical |
+| `melon-24.py` | `MELON_TILES=24`, the value accepted change #17 describes | **0-24** vs `main.py`'s 20 |
 
 `land-3.py` is the interesting failure. It banks more than the incumbent
 against `starter` and against two of the three recorded farms, and it still
